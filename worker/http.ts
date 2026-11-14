@@ -28,5 +28,6 @@ export const securityHeaders: MiddlewareHandler = async (c, next) => {
   h.set("X-Content-Type-Options", "nosniff");
   h.set("X-Frame-Options", "DENY");
   h.set("Referrer-Policy", "no-referrer");
-  h.set("Cache-Control", "no-store");
+  // Private by default; public Discover routes opt in to short caching.
+  if (!h.has("Cache-Control")) h.set("Cache-Control", "no-store");
 };

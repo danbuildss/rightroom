@@ -2,6 +2,10 @@
 
 Short records of technical decisions, newest first. Product decisions live in `PLAN.md`.
 
+## 2026-11-14: Public Discover API and evidence helpers
+- **Public API (`/api/public/…`) is read-only and needs no login**, registered before the admin check. It returns only verified companies and verified signals of verified companies; stale signals appear with status `stale`. Sample records and internal fields (reviewers, rejection reasons, internal ids) are never returned. Responses may be cached for 60 seconds; everything else stays `no-store`.
+- **Evidence helpers for reviewers** (`POST /api/admin/{companies,signals}/:id/evidence`): the Worker reads the source page and suggests the sentences that best match the claim (shared keyword overlap, `shared/evidence.ts`), or checks a company homepage loads and names the company. Suggestions only; approving is still a person's decision. Page reads are capped (10 s, 2 MB), http(s) only, and failures are reported plainly instead of erroring.
+
 ## 2026-11-14: Admin key login (Option B)
 - **Why:** Cloudflare Zero Trust asks for a card on file even on its free plan; Dan chose not to. The admin API is protected by one long random key instead (`ADMIN_TOKEN`, a Cloudflare secret, 32+ characters; `npm run admin:key` makes a 48-character one).
 - **How it's checked:** `Authorization: Bearer <key>`, compared in constant time (both sides hashed, then `timingSafeEqual`). A key shorter than 32 characters is ignored and the API fails closed. Reviews are recorded under `ADMIN_NAME`.

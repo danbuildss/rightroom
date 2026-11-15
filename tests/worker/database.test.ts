@@ -105,6 +105,8 @@ describe("workspace isolation", () => {
       "spend_ledger",
       // Pilot sign-ups from the marketing site: admin-only, before any workspace exists.
       "access_requests",
+      // Contacts and channels: part of the shared company registry, admin-curated.
+      "company_contacts",
     ];
     const { results } = await env.DB.prepare(
       "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name != 'd1_migrations'",

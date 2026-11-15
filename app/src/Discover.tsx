@@ -22,7 +22,7 @@ const day = (iso: string | null) =>
 const title = (s: string) => s.replace(/\b\w/g, (c) => c.toUpperCase());
 const safeHref = (url: string) => (/^https?:\/\//i.test(url) ? url : undefined);
 
-export function Discover({ suggestion }: { suggestion: string }) {
+export function Discover({ suggestion, onOpen }: { suggestion: string; onOpen: (slug: string) => void }) {
   const [q, setQ] = useState("");
   const [submitted, setSubmitted] = useState("");
   const [cats, setCats] = useState<string[] | undefined>(undefined);
@@ -179,6 +179,7 @@ export function Discover({ suggestion }: { suggestion: string }) {
                 r={r}
                 open={open === r.slug}
                 onToggle={() => setOpen(open === r.slug ? null : r.slug)}
+                onOpen={() => onOpen(r.slug)}
               />
             ))}
           </div>
@@ -199,7 +200,17 @@ export function Discover({ suggestion }: { suggestion: string }) {
   );
 }
 
-function ResultCard({ r, open, onToggle }: { r: DiscoverResult; open: boolean; onToggle: () => void }) {
+function ResultCard({
+  r,
+  open,
+  onToggle,
+  onOpen,
+}: {
+  r: DiscoverResult;
+  open: boolean;
+  onToggle: () => void;
+  onOpen: () => void;
+}) {
   const latest = r.signals[0];
   const sectors = r.categories.filter((c) => c.kind === "sector").map((c) => c.label);
   return (
@@ -235,7 +246,10 @@ function ResultCard({ r, open, onToggle }: { r: DiscoverResult; open: boolean; o
           )}
         </div>
         <div className="dacts">
-          <button type="button" className={open ? "mini dark" : "mini"} aria-expanded={open} onClick={onToggle}>
+          <button type="button" className="mini dark" onClick={onOpen}>
+            View profile →
+          </button>
+          <button type="button" className="mini" aria-expanded={open} onClick={onToggle}>
             {open ? "Hide details ▴" : "Show details ▾"}
           </button>
           <a className="mini" href={`https://${r.domain}`} target="_blank" rel="noopener noreferrer">

@@ -10,6 +10,7 @@ const SECTIONS = [
   ["inbox", "Inbox"],
   ["requests", "Requests"],
   ["sources", "Sources"],
+  ["companies", "Companies"],
   ["founders", "Founders"],
   ["spend", "Spend"],
 ];
@@ -724,6 +725,113 @@ views.sources = async (view) => {
       render();
     }
   };
+};
+
+// ---------- Companies: contacts and channels ----------
+views.companies = async (view) => {
+  let q = "";
+  const render = async () => {
+    const { companies } = await api("GET", `/companies?status=verified&limit=200${q ? `&q=${encodeURIComponent(q)}` : ""}`);
+    view.innerHTML = `${header("Companies", "Verified companies. Add who to contact: named people only with a public source page, and official channels. Founders see a contact only after you approve it.")}
+      <form class="toolbar" id="co-search"><input name="q" placeholder="Search companies" value="${esc(q)}" maxlength="100"><button class="btn sm" type="submit">Search</button></form>
+      ${companies.length ? "" : `<div class="empty"><b>No verified companies match</b>Verify companies in Review first.</div>`}
+      ${companies
+        .map(
+          (c) => `<article class="item" data-id="${esc(c.id)}">
+        <div class="ih"><div class="grow"><div class="title">${esc(c.name)}</div><div class="meta">${link(`https://${c.primary_domain}`, c.primary_domain)}${c.is_sample ? " · sample" : ""}</div></div>
+        <button class="btn sm" type="button" data-contacts aria-expanded="false">Contacts ▾</button></div>
+        <div class="ib pad-b" data-panel hidden></div>
+      </article>`,
+        )
+        .join("")}`;
+  };
+  await render();
+
+  const panel = async (card) => {
+    const id = card.dataset.id;
+    const box = $("[data-panel]", card);
+    box.hidden = false;
+    box.innerHTML = `<span class="reading">Loading contacts…</span>`;
+    const { contacts } = await api("GET", `/companies/${encodeURIComponent(id)}/contacts`);
+    const statusPill = { needs_review: `<span class="pill warn">Waiting for your approval</span>`, verified: `<span class="pill ok">Verified</span>` };
+    box.innerHTML = `${
+      contacts.length
+        ? contacts
+            .map(
+              (k) => `<div class="proof" data-contact="${esc(k.id)}"><div class="ph"><span>${k.kind === "person" ? `<b>${esc(k.name)}</b> · ${esc(k.role)}` : `<b>${esc(k.channel_label)}</b> · ${link(k.url)}`}</span>${statusPill[k.status] ?? ""}</div>
+            <div class="meta">Source: ${link(k.source_url)} · confidence ${esc(k.confidence)}${k.last_checked_at ? ` · checked ${day(k.last_checked_at)}` : ""}</div>
+            <div class="row-actions mt-s">${k.status === "needs_review" ? `<button class="btn sm blue" type="button" data-cverify>✓ Approve</button>` : `<button class="btn sm" type="button" data-cverify>Re-check (today)</button>`}<button class="btn sm danger" type="button" data-creject>Remove…</button></div></div>`,
+            )
+            .join("")
+        : `<p class="meta">No contacts yet.</p>`
+    }
+      <form class="inline-form flat" data-add>
+        <div class="form-grid">
+          <div><label>Type<select name="kind"><option value="person">Named person</option><option value="channel">Official channel</option></select></label></div>
+          <div><label>Confidence<select name="confidence"><option value="high">High: their own site says so</option><option value="medium">Medium: a reliable public page</option><option value="low">Low: older or indirect</option></select></label></div>
+          <div data-for="person"><label>Name<input name="name" maxlength="120"></label></div>
+          <div data-for="person"><label>Role<input name="role" maxlength="120" placeholder="Head of Partnerships"></label></div>
+          <div data-for="channel" hidden><label>Channel<input name="channel_label" maxlength="120" placeholder="Partner application form"></label></div>
+          <div data-for="channel" hidden><label>Channel link<input name="url" type="url" maxlength="500" placeholder="https://"></label></div>
+          <div class="full"><label>Source page (shows this person or channel)<input name="source_url" type="url" maxlength="500" placeholder="https://"></label><p class="help">Public pages only. Never a guessed email.</p></div>
+        </div>
+        <button class="btn sm dark" type="submit">Add for review</button>
+      </form>`;
+    const form = $("[data-add]", box);
+    const sync = () => {
+      const kind = form.kind.value;
+      for (const el of form.querySelectorAll("[data-for]")) el.hidden = el.dataset.for !== kind;
+    };
+    form.kind.addEventListener("change", sync);
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const d = Object.fromEntries(new FormData(form).entries());
+      const payload =
+        d.kind === "person"
+          ? { kind: "person", name: d.name, role: d.role, source_url: d.source_url, confidence: d.confidence }
+          : { kind: "channel", channel_label: d.channel_label, url: d.url, confidence: d.confidence, ...(d.source_url ? { source_url: d.source_url } : {}) };
+      try {
+        await api("POST", `/companies/${encodeURIComponent(id)}/contacts`, payload);
+        toast("Added. Approve it to show it to founders.");
+        panel(card);
+      } catch (err) {
+        if (err.status !== 401) toast(err.message, { bad: true });
+      }
+    });
+  };
+
+  view.onclick = async (e) => {
+    const t = e.target;
+    const card = t.closest(".item");
+    try {
+      if (t.closest("[data-contacts]") && card) {
+        const b = t.closest("[data-contacts]");
+        const open = b.getAttribute("aria-expanded") === "true";
+        b.setAttribute("aria-expanded", String(!open));
+        b.textContent = open ? "Contacts ▾" : "Hide ▴";
+        if (open) $("[data-panel]", card).hidden = true;
+        else await panel(card);
+      } else if (t.closest("[data-cverify]") && card) {
+        await api("POST", `/contacts/${encodeURIComponent(t.closest("[data-contact]").dataset.contact)}/review`, { action: "verify" });
+        toast("Approved. Founders can see it now.");
+        panel(card);
+      } else if (t.closest("[data-creject]") && card) {
+        const reason = window.prompt("Why remove it? (e.g. left the company, page changed)");
+        if (!reason) return;
+        await api("POST", `/contacts/${encodeURIComponent(t.closest("[data-contact]").dataset.contact)}/review`, { action: "reject", reason });
+        toast("Removed.");
+        panel(card);
+      }
+    } catch (err) {
+      if (err.status !== 401) toast(err.message, { bad: true });
+    }
+  };
+  view.addEventListener("submit", async (e) => {
+    if (e.target.id !== "co-search") return;
+    e.preventDefault();
+    q = e.target.q.value.trim();
+    await render();
+  });
 };
 
 // ---------- Founders ----------

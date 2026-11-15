@@ -2,13 +2,19 @@
 
 Short records of technical decisions, newest first. Product decisions live in `PLAN.md`.
 
+## 2026-11-15: Company intelligence
+- **`GET /api/app/companies/:slug`** (founder session): one verified company, scored for that founder, with verified signals, **verified** contacts only and Rightroom's suggestions.
+- **Suggestions are rules, not AI** (`shared/intel.ts`): "for you", "for them" (from the founder's own one-liner), suggested role (by goal, plus "whoever runs the partner program" when there is one) and best approach (partner program, then a verified channel, then the website). Always labelled "Our suggestion", with what they were built from.
+- **Contacts (`company_contacts`, migration 0008)** follow decision C: a named person needs a name, role and public source page; channels are links (no email addresses). Dan adds them in `/admin` → Companies; they start as needs_review and founders see them only once approved, with the date checked and a confidence label. Approved contacts also raise the contact-access factor.
+- Save and Draft introduction show as disabled with *Soon* / *Next step* until those steps are built.
+
 ## 2026-11-15: Discover (rule-based, no AI)
 - **`GET /api/app/discover`** (founder session) ranks verified, non-sample companies only. Searches are read with word lists (`shared/discover.ts`): sectors and technologies map to category slugs, partnership words to goals. Places are recognised but not filtered ("location filter coming soon"), because we don't store where companies operate yet. "US"/"UK" only count in capitals, so "help us" isn't a place.
 - **Scores use the fixed formula** (weights 30/25/20/15/10) with factor scores worked out from data we hold:
   - Alignment: shared categories and description words.
   - Mutual value: the founder's goals matched to fresh signal types.
   - Readiness: explicit or implied intent signals and their freshness.
-  - Contact: a public partner page; capped at 3 until we hold named contacts.
+  - Contact: 5 with a verified named contact at high confidence, 4 at lower confidence, 3 with a verified official channel or partner page, otherwise 2 (from step 5, contacts Dan approves count).
   - Feasibility: shared technology or ecosystem.
   - Every factor carries a one-line reason.
 - **Labels:** Strong ≥ 75, Potential 55–74; lower scores aren't listed. With no verified signal, evidence is Low and the card says "Needs verification" instead of a score (shown only when the company clearly matches the search).

@@ -5,6 +5,7 @@
 import { type Context, Hono } from "hono";
 import { z } from "zod";
 import { ACCESS_STATUSES, accessReviewSchema, directInviteSchema } from "../../shared/access.ts";
+import { contactInputSchema, contactReviewSchema } from "../../shared/contacts.ts";
 import { ALIAS_KINDS, COMPANY_STATUSES } from "../../shared/registry.ts";
 import { companyPatchSchema, registryFileSchema, signalPatchSchema } from "../../shared/registry-file.ts";
 import {
@@ -17,6 +18,7 @@ import {
 import { inviteDirectly, listAccessRequests, reviewAccessRequest } from "../db/access.ts";
 import { auditData } from "../db/audit.ts";
 import { addAlias, DuplicateCompanyError, getCompany, listCompanies, mergeCompanies } from "../db/companies.ts";
+import { addContact, listContacts, reviewContact } from "../db/contacts.ts";
 import { ImportRejectedError, importRegistryFile, reviewQueue, updateCompany, updateSignal } from "../db/curation.ts";
 import { companyEvidence, signalEvidence } from "../db/evidence.ts";
 import { listFounders } from "../db/founders.ts";
@@ -254,6 +256,26 @@ export const admin = new Hono<AppEnv>()
     const invite = await body(c, directInviteSchema);
     if (invite instanceof Response) return invite;
     return c.json({ request: await inviteDirectly(c.env.DB, invite) }, 201);
+  })
+  // Contacts and official channels for a company (verified ones show on founders' company pages).
+  .get("/companies/:id/contacts", async (c) => c.json({ contacts: await listContacts(c.env.DB, c.req.param("id")) }))
+  .post("/companies/:id/contacts", async (c) => {
+    const input = await body(c, contactInputSchema);
+    if (input instanceof Response) return input;
+    try {
+      return c.json({ contact: await addContact(c.env.DB, c.req.param("id"), input, c.get("adminEmail")) }, 201);
+    } catch (err) {
+      return fail(c, err);
+    }
+  })
+  .post("/contacts/:id/review", async (c) => {
+    const review = await body(c, contactReviewSchema);
+    if (review instanceof Response) return review;
+    try {
+      return c.json({ contact: await reviewContact(c.env.DB, c.req.param("id"), review) });
+    } catch (err) {
+      return fail(c, err);
+    }
   })
   .get("/founders", async (c) => c.json({ founders: await listFounders(c.env.DB) }))
   .patch("/access-requests/:id", async (c) => {

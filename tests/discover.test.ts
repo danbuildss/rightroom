@@ -68,9 +68,19 @@ describe("scoreCompany", () => {
     expect(fit.factors.find((f) => f.factor === "contact_access")?.reason).toMatch(/no named contact/);
   });
 
-  it("never lets contact access go above 3 (no named contacts in our data yet)", () => {
-    const fit = scoreCompany(company(), ctx, NOW);
-    expect(fit.factors.find((f) => f.factor === "contact_access")?.score).toBeLessThanOrEqual(3);
+  it("keeps contact access at 3 or below until a named contact is verified", () => {
+    const contactScore = (c: DiscoverCompany) =>
+      scoreCompany(c, ctx, NOW).factors.find((f) => f.factor === "contact_access");
+    expect(contactScore(company())?.score).toBe(3);
+    expect(contactScore(company({ contacts: { people: [], channels: 1 } }))?.score).toBe(3);
+    expect(
+      contactScore(company({ contacts: { people: [{ role: "BD lead", confidence: "medium" }], channels: 0 } }))?.score,
+    ).toBe(4);
+    const high = contactScore(
+      company({ contacts: { people: [{ role: "Head of Partnerships", confidence: "high" }], channels: 0 } }),
+    );
+    expect(high?.score).toBe(5);
+    expect(high?.reason).toMatch(/Head of Partnerships/);
   });
 
   it("says 'needs verification' instead of a score when there are no verified signals", () => {

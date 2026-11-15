@@ -119,7 +119,7 @@ export function requireAdmin(options: AuthOptions = {}): MiddlewareHandler<AppEn
         return jsonError(c, 401, "unauthenticated", "Your sign-in is invalid or expired.");
       }
       if (!email || !allowlist.has(email)) {
-        return jsonError(c, 403, "forbidden", "This account is not allowed to use Talo.");
+        return jsonError(c, 403, "forbidden", "This account is not allowed to use Rightroom.");
       }
       c.set("adminEmail", email);
       return next();

@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { accessRequestSchema } from "../shared/access.ts";
 
@@ -88,9 +88,9 @@ describe("privacy and terms pages", () => {
       expect(page).not.toMatch(/\sstyle=/);
       expect(page).not.toMatch(/<script/);
     }
-    expect(html).toContain('href="/privacy.html"');
-    expect(html).toContain('href="/terms.html"');
-    expect(readFileSync("app/src/App.tsx", "utf8")).toContain('href="/privacy.html"');
+    expect(html).toContain('href="/privacy"');
+    expect(html).toContain('href="/terms"');
+    expect(readFileSync("app/src/App.tsx", "utf8")).toContain('href="/privacy"');
   });
 
   it("contain no unfilled placeholders and say plainly what's still missing", () => {
@@ -105,5 +105,75 @@ describe("privacy and terms pages", () => {
     expect(privacy).toMatch(/12 months/);
     expect(privacy).toMatch(/never guess email addresses/);
     expect(terms).toMatch(/Rightroom never sends messages/);
+  });
+});
+
+describe("brand and sharing", () => {
+  const LOGO = "M 0 32 L 120 0 L 120 136 L 43 116 L 84 105 L 84 40 L 34 54 L 34 115 L 0 134 Z";
+  const pages = [
+    "site/index.html",
+    "site/privacy.html",
+    "site/terms.html",
+    "site/thanks.html",
+    "site/404.html",
+    "site/admin/index.html",
+    "app/index.html",
+  ];
+
+  it("uses Dan's logo everywhere, and none of the old drawing", () => {
+    for (const f of [...pages.filter((p) => !p.startsWith("app/")), "site/favicon.svg", "app/src/App.tsx"]) {
+      const src = readFileSync(f, "utf8");
+      expect(src, f).not.toContain("M0 22 L100 0");
+      if (f !== "site/thanks.html" && f !== "site/404.html" && f !== "site/privacy.html" && f !== "site/terms.html")
+        expect(src, f).toContain(LOGO);
+    }
+  });
+
+  it("links the icon set and manifest on every page", () => {
+    for (const f of pages) {
+      const src = readFileSync(f, "utf8");
+      for (const href of ["/favicon.svg", "/favicon-32.png", "/apple-touch-icon.png", "/manifest.webmanifest"])
+        expect(src, f).toContain(href);
+    }
+    for (const file of [
+      "favicon-32.png",
+      "favicon-48.png",
+      "apple-touch-icon.png",
+      "icon-192.png",
+      "icon-512.png",
+      "icon-maskable-512.png",
+      "og.png",
+    ]) {
+      expect(existsSync(`site/${file}`), file).toBe(true);
+    }
+    const manifest = JSON.parse(readFileSync("site/manifest.webmanifest", "utf8")) as { icons: { src: string }[] };
+    for (const icon of manifest.icons) expect(existsSync(`site${icon.src}`)).toBe(true);
+  });
+
+  it("gives public pages a link preview with an absolute image", () => {
+    for (const f of ["site/index.html", "site/privacy.html", "site/terms.html"]) {
+      const src = readFileSync(f, "utf8");
+      expect(src).toMatch(/property="og:image" content="https:\/\/[^"]+\/og\.png"/);
+      expect(src).toContain('name="twitter:card" content="summary_large_image"');
+    }
+  });
+
+  it("keeps the app, back office and API out of search engines", () => {
+    const robots = readFileSync("site/robots.txt", "utf8");
+    for (const p of ["/app/", "/admin/", "/api/"]) expect(robots).toContain(`Disallow: ${p}`);
+    expect(readFileSync("site/sitemap.xml", "utf8")).toContain("/privacy</loc>");
+  });
+
+  it("ships the brand kit", () => {
+    for (const file of [
+      "rightroom-icon.svg",
+      "rightroom-logo.svg",
+      "rightroom-logo-on-dark.svg",
+      "x-profile-400.png",
+      "x-banner-1500x500.png",
+    ]) {
+      expect(existsSync(`brand/assets/${file}`), file).toBe(true);
+    }
+    expect(readFileSync("brand/assets/rightroom-logo.svg", "utf8")).not.toContain("NaN");
   });
 });

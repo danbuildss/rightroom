@@ -246,7 +246,7 @@ export const watchedSourceInputSchema = z.strictObject({
   terms_note: z
     .string()
     .trim()
-    .min(10, { error: "say why Talo may read this source (terms checked, public feed…)" })
+    .min(10, { error: "say why Rightroom may read this source (terms checked, public feed…)" })
     .max(500),
   company_domain: z.string().trim().max(200).optional(),
   signal_type_hint: z.enum(SIGNAL_TYPE_SLUGS).optional(),

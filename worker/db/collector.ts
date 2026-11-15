@@ -51,7 +51,7 @@ export interface CollectorEnv {
 export const GROK_DEFAULT_MODEL = "grok-4.3";
 export const GROK_DEFAULT_CAP_USD = 50;
 
-export const USER_AGENT = "TaloCollector/0.1 (+https://github.com/danbuildss/talo)";
+export const USER_AGENT = "RightroomCollector/0.1 (+https://github.com/danbuildss/rightroom)";
 const FETCH_TIMEOUT_MS = 10_000;
 const MAX_ITEMS_PER_RUN = 25;
 const MAX_BODY_BYTES = 2_000_000;

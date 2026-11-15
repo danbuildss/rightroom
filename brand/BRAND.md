@@ -16,7 +16,7 @@ Rightroom replaced the working name Talo. Trademark and domain checks are still 
 | Tagline | Get in the right room. |
 | Credit line | built by Somehow Internet |
 
-- **Symbol:** the blue doorway: a door frame in perspective with a small step at its base, Electric Blue `#0057FF`. The source is the `<symbol id="rr">` in `site/index.html`; the favicon is `site/favicon.svg`.
+- **Symbol:** the blue doorway, Electric Blue `#0057FF`, from Dan's supplied file. Source files: `brand/assets/` (see its README); on the site it's the `<symbol id="rr">` in `site/index.html` and `site/favicon.svg`.
 - **Lockup:** symbol on the left, wordmark on the right, gap about 40% of the symbol's width. Wordmark in Geist ExtraBold, letter-spacing about −0.045em, ink on light backgrounds, white on dark.
 - Symbol height matches the wordmark's cap height plus descender (about 1.2× the font size).
 - Smallest size: wordmark 16px on screen.

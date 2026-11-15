@@ -2,6 +2,13 @@
 
 Short records of technical decisions, newest first. Product decisions live in `PLAN.md`.
 
+## 2026-11-15: Brand assets and launch basics (audit batch 1)
+- **Dan's logo** (`brand/assets/rightroom-icon.svg`) replaces the earlier redraw everywhere. The wordmark lockups are Geist 800 converted to outlines: made from a fixed-weight instance (fontTools) because opentype.js broke on variable outlines.
+- **Web icons** (SVG plus 32/48 px PNG favicons, 180 px Apple touch icon, 192/512 px and maskable app icons) and a web manifest are linked on every page.
+- **Link previews:** `/og.png` (1200×630) with Open Graph and X card tags on the public pages. Image URLs are absolute and use the workers.dev address until there's a custom domain (both Vercel and Cloudflare serve the same file).
+- **Clean addresses:** links go to `/privacy` and `/terms` (Cloudflare serves them; Vercel has `cleanUrls`). Our own `robots.txt` hides /app, /admin and /api, and a sitemap lists the public pages.
+- **Old name:** the collector now identifies itself as `RightroomCollector`, and user-visible messages say Rightroom.
+
 ## 2026-11-15: Privacy policy, terms, retention and the Vercel host
 - **`/privacy.html` and `/terms.html`** describe only what the product does today. They say plainly that Somehow Internet isn't registered yet and that the legal entity, a contact email and the governing law come before public launch. Linked from the site footer, the access form and the sign-in screen. A lawyer should review them before launch.
 - **Access requests are deleted 12 months after the decision** (hourly Cron, `purgeOldAccessRequests`). New, undecided requests are kept.

@@ -2,6 +2,16 @@
 
 Short records of technical decisions, newest first. Product decisions live in `PLAN.md`.
 
+## 2026-11-15: Grok fix: match cited posts by number, and log every run
+- **Bug:** Grok's answer names posts as `x.com/<account>/status/<id>`, while xAI often cites them as `x.com/i/status/<id>`. We compared whole links, so real posts were dropped as "not cited", and Dan's first searches found nothing. Posts are now matched on their status number. When the citation names the account, that name wins over Grok's. Handle and people evidence must still be a cited post by that same account (when the citation doesn't name the account, Grok's claim is used and Dan checks the link).
+- **Run log (`grok_runs`, migration 0018):** every Grok call records:
+  - the question, date range, model and max posts
+  - posts read, listed, kept and dropped, with a reason for each drop
+  - the start of Grok's answer
+  - the cost
+
+  Failures record xAI's own error message (never the key). Back office → Grok research → **Show details**.
+
 ## 2026-11-15: Points of contact (data engine, part C)
 - **Where contacts are found:**
   - **The company's own pages:** the homepage plus up to 2 team, about or leadership pages it links to. Named people come from JSON-LD `Person` (with `jobTitle`), or a team grid where a name is followed by a role. Only roles worth contacting are kept (founder, CEO/CTO/COO, partnerships, BD, developer relations, ecosystem, alliances). A role title is never taken as a name. Confidence: high.

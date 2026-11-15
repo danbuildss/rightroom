@@ -210,3 +210,10 @@ a.btn{text-decoration:none}
 .cname{font:650 16px Geist,sans-serif;border:1px solid transparent;border-radius:8px;padding:4px 6px;margin:0 0 2px -6px;width:100%;max-width:420px;background:transparent}
 .cname:hover,.cname:focus{border-color:var(--line);background:#fff}
 tr.on td{background:var(--blue-tint)}
+.details-row td{background:var(--warm-2)}
+.grun{border-bottom:1px dashed var(--line);padding:8px 0}
+.grun:last-child{border-bottom:0}
+.grun .ph{display:flex;gap:10px;align-items:center}
+.gans{white-space:pre-wrap;word-break:break-word;font:12px/1.5 "Geist Mono",monospace;background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px;max-height:260px;overflow:auto}
+.grun details{margin:4px 0;font-size:13px}
+.grun ul{margin:4px 0 0;padding-left:18px;font-size:12.5px;word-break:break-all}

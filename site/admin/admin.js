@@ -1300,8 +1300,9 @@ views.grok = async (view) => {
         <td class="hide-m">${x.runs}<br><span class="meta">${x.last_run_at ? day(x.last_run_at) : "never"}</span></td>
         <td>${usd(x.cost_usd)}<br><span class="meta">${x.last_cost_usd !== null ? `last ${usd(x.last_cost_usd, 3)} · ${x.last_posts_read ?? 0} posts read` : ""}</span></td>
         <td>${x.items}<br><span class="meta">👍 ${x.useful} · 👎 ${x.not_useful}</span></td>
-        <td>${runBtn(x)}</td>
-      </tr>`;
+        <td><div class="row-actions">${runBtn(x)}<button class="btn sm" type="button" data-details="${esc(x.id)}" aria-expanded="false">Show details</button></div></td>
+      </tr>
+      <tr class="details-row" data-details-for="${esc(x.id)}" hidden><td colspan="5"><div class="gdet"></div></td></tr>`;
     const table = (rows, empty) =>
       rows.length
         ? `<table><tr><th>Search</th><th class="hide-m">Runs</th><th>Spent</th><th>Results</th><th><span class="sr">Actions</span></th></tr>${rows.map(row).join("")}</table>`
@@ -1377,6 +1378,32 @@ views.grok = async (view) => {
         const { outcome } = await api("POST", `/watched-sources/${encodeURIComponent(b.dataset.run)}/run`);
         toast(outcome.status === "ok" ? `${outcome.items_new} new results in your Inbox.` : outcome.error || "Didn't run.", { bad: outcome.status === "failed" });
         await render();
+      } else if (t.closest("[data-details]")) {
+        const b = t.closest("[data-details]");
+        const row = view.querySelector(`[data-details-for="${CSS.escape(b.dataset.details)}"]`);
+        const open = b.getAttribute("aria-expanded") === "true";
+        b.setAttribute("aria-expanded", String(!open));
+        b.textContent = open ? "Show details" : "Hide details";
+        row.hidden = open;
+        if (open) return;
+        const box = row.querySelector(".gdet");
+        box.innerHTML = `<span class="reading">Loading…</span>`;
+        const { runs } = await api("GET", `/grok/runs?source_id=${encodeURIComponent(b.dataset.details)}`);
+        box.innerHTML = runs.length
+          ? runs
+              .map(
+                (r) => `<div class="grun">
+              <div class="ph"><b>${day(r.ran_at)} ${new Date(r.ran_at).toISOString().slice(11, 16)} UTC</b><span class="pill ${r.status === "ok" ? "ok" : "bad"}">${r.status === "ok" ? "Ran" : "Failed"}</span></div>
+              <p class="meta">Asked: “${esc(r.query)}” · posts from ${esc(r.from_date)} · up to ${r.max_posts} · model ${esc(r.model)}</p>
+              ${r.error ? `<p class="warn-t">${esc(r.error)}</p>` : ""}
+              ${r.status === "ok" ? `<p class="meta">xAI read ${r.posts_read} posts · Grok listed ${r.listed} · kept ${r.kept} · dropped ${r.listed - r.kept}${r.cost_usd !== null ? ` · cost ${usd(r.cost_usd, 3)}` : ""}</p>` : ""}
+              ${r.dropped.length ? `<details><summary>Why ${r.dropped.length} were dropped</summary><ul>${r.dropped.map((d) => `<li>${esc(d.url)}: ${esc(d.reason)}</li>`).join("")}</ul></details>` : ""}
+              ${r.answer_excerpt ? `<details><summary>Grok's answer (start)</summary><pre class="gans">${esc(r.answer_excerpt)}</pre></details>` : ""}
+              ${r.status === "ok" && r.listed === 0 ? `<p class="meta">Grok found no matching posts in this period. Try a broader question or more days.</p>` : ""}
+            </div>`,
+              )
+              .join("")
+          : `<p class="meta">No details yet. Runs before this update weren't recorded; run it again to see them here.</p>`;
       } else if (t.closest("[data-haccept]") || t.closest("[data-hdismiss]")) {
         const id = t.closest("[data-hid]").dataset.hid;
         const accept = Boolean(t.closest("[data-haccept]"));

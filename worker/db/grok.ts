@@ -303,3 +303,16 @@ export async function decideHandle(db: D1Database, id: string, accept: boolean, 
     .bind(accept ? "accepted" : "dismissed", editor, id)
     .run();
 }
+
+/** The last runs of one Grok search (or all), newest first, for "Show details". */
+export async function listGrokRuns(db: D1Database, sourceId?: string, limit = 10) {
+  const { results } = await db
+    .prepare(
+      `SELECT id, watched_source_id, ran_at, status, model, query, from_date, max_posts, posts_read, listed, kept,
+         dropped_json, answer_excerpt, error, cost_usd FROM grok_runs
+       ${sourceId ? "WHERE watched_source_id = ?" : ""} ORDER BY ran_at DESC LIMIT ?`,
+    )
+    .bind(...(sourceId ? [sourceId, limit] : [limit]))
+    .all<Record<string, unknown>>();
+  return results.map((r) => ({ ...r, dropped: JSON.parse(String(r.dropped_json ?? "[]")) }));
+}

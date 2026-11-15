@@ -367,6 +367,42 @@ async function collectGrok(
     const reason = `Skipped: this search could cost up to ${estimate.toFixed(2)} USD and only ${(cap - spent).toFixed(2)} of ${cap} USD is left this month`;
     return { status: "skipped", reason, retryAt: addHours(now, source.interval_hours) };
   }
+  const model = env.GROK_MODEL || GROK_DEFAULT_MODEL;
+  const request = buildGrokRequest(config, model, now);
+  const fromDate = new Date(now.getTime() - config.lookback_days * 86_400_000).toISOString().slice(0, 10);
+  /** Record what was asked and what came back, for Dan's "Show details". */
+  const log = (r: {
+    status: "ok" | "failed";
+    posts_read?: number;
+    listed?: number;
+    kept?: number;
+    dropped?: unknown[];
+    answer?: string | null;
+    error?: string | null;
+    cost?: number | null;
+  }) =>
+    db
+      .prepare(
+        `INSERT INTO grok_runs (id, watched_source_id, ran_at, status, model, query, from_date, max_posts, posts_read, listed,
+           kept, dropped_json, answer_excerpt, error, cost_usd) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .bind(
+        newId(),
+        source.id,
+        nowIso(now),
+        r.status,
+        model,
+        config.company ? `${config.company.name} (${config.company.domain}): ${config.query}` : config.query,
+        fromDate,
+        config.max_posts,
+        r.posts_read ?? 0,
+        r.listed ?? 0,
+        r.kept ?? 0,
+        JSON.stringify(r.dropped ?? []),
+        r.answer ?? null,
+        r.error ?? null,
+        r.cost ?? null,
+      );
   let res: Response;
   try {
     res = await fetcher("https://api.x.ai/v1/responses", {
@@ -376,18 +412,30 @@ async function collectGrok(
         "content-type": "application/json",
         "user-agent": USER_AGENT,
       },
-      body: JSON.stringify(buildGrokRequest(config, env.GROK_MODEL || GROK_DEFAULT_MODEL, now)),
+      body: JSON.stringify(request),
       signal: AbortSignal.timeout(90_000),
     });
   } catch (err) {
-    throw new FetchError(`could not reach api.x.ai: ${err instanceof Error ? err.name : "error"}`);
+    const error = `could not reach api.x.ai: ${err instanceof Error ? err.name : "error"}`;
+    await log({ status: "failed", error }).run();
+    throw new FetchError(error);
   }
-  if (!res.ok) throw new FetchError(`api.x.ai answered ${res.status}`);
+  if (!res.ok) {
+    // xAI's own message (e.g. an unknown model or no credit) helps Dan fix it; it never contains the key.
+    const detail = (await res.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 300);
+    await log({ status: "failed", error: `api.x.ai answered ${res.status}${detail ? `: ${detail}` : ""}` }).run();
+    throw new FetchError(`api.x.ai answered ${res.status}`);
+  }
+  let raw: unknown;
   let parsed: ReturnType<typeof parseGrokResponse>;
   try {
-    parsed = parseGrokResponse(await res.json());
+    raw = await res.json();
+    parsed = parseGrokResponse(raw);
   } catch (err) {
-    throw new FetchError(`couldn't read Grok's answer (${err instanceof Error ? err.name : "error"})`);
+    const error = `couldn't read Grok's answer (${err instanceof Error ? err.message.slice(0, 120) : "error"})`;
+    const text = JSON.stringify(raw ?? null).slice(0, 1500);
+    await log({ status: "failed", error, answer: text }).run();
+    throw new FetchError(error);
   }
   const cost = estimateGrokCost(parsed, grokPrices(env));
   const spend = db
@@ -396,6 +444,15 @@ async function collectGrok(
        VALUES (?, 'xai', ?, ?, ?, ?, ?, ?)`,
     )
     .bind(newId(), source.id, parsed.citations, parsed.input_tokens, parsed.output_tokens, cost, nowIso(now));
+  await log({
+    status: "ok",
+    posts_read: parsed.citations,
+    listed: parsed.debug.listed,
+    kept: parsed.items.length,
+    dropped: parsed.debug.dropped,
+    answer: parsed.debug.answer_excerpt,
+    cost,
+  }).run();
   return {
     status: "ok",
     result: {

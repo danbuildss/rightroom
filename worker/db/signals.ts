@@ -6,6 +6,7 @@ import { normalizeAlias, normalizeUrl, type SourceInput } from "../../shared/reg
 import {
   type EffectiveStatus,
   effectiveSignalStatus,
+  needsExactExcerpt,
   nextStatus,
   type ReviewInput,
   type ReviewStatus,
@@ -170,14 +171,17 @@ export async function reviewSignal(
   now = new Date(),
 ): Promise<ReviewStatus> {
   const row = await db
-    .prepare("SELECT status FROM signal_events WHERE id = ?")
+    .prepare("SELECT status, source_excerpt FROM signal_events WHERE id = ?")
     .bind(signalId)
-    .first<{ status: ReviewStatus }>();
+    .first<{ status: ReviewStatus; source_excerpt: string }>();
   if (!row) throw new NotFoundError("signal not found");
   const to = nextStatus(row.status, review.action);
   if (!to) throw new InvalidReviewError(`can't ${review.action} a signal that is ${row.status}`);
 
   if (review.action === "verify") {
+    if (needsExactExcerpt(row.source_excerpt)) {
+      throw new InvalidReviewError("replace the search summary with the source's exact words before verifying");
+    }
     const { results } = await db
       .prepare("SELECT s.url FROM signal_sources ss JOIN sources s ON s.id = ss.source_id WHERE ss.signal_id = ?")
       .bind(signalId)

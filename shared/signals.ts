@@ -41,6 +41,14 @@ export function isPublic(signalStatus: ReviewStatus, companyStatus: ReviewStatus
   return signalStatus === "verified" && companyStatus === "verified";
 }
 
+/** Draft excerpts written from search results start with this; they must be replaced with the source's own words. */
+export const SUMMARY_PREFIX = "Search summary";
+
+/** True when an excerpt is missing or is still a search summary rather than the source's exact words. */
+export function needsExactExcerpt(excerpt: string | null | undefined): boolean {
+  return !excerpt || excerpt.trim().startsWith(SUMMARY_PREFIX);
+}
+
 export const REVIEW_ACTIONS = ["verify", "reject", "reopen"] as const;
 export type ReviewAction = (typeof REVIEW_ACTIONS)[number];
 

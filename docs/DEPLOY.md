@@ -81,3 +81,17 @@ When importing the repo in Vercel:
 - Never add secrets (admin key, API keys) to Vercel: it doesn't need any.
 
 If the Worker URL ever changes, update the `rewrites` destination in `vercel.json`.
+
+## The back office (`/admin`)
+
+Open `https://rightroom.<your-subdomain>.workers.dev/admin` and paste your admin key (the same `ADMIN_TOKEN`
+you use with the scripts). The key stays in that browser tab only and is forgotten when you close it or press Lock.
+
+- **Overview:** what needs you, collector health and spend.
+- **Review:** each item arrives with its checks done (site loads, page names the company; the best matching
+  sentence for signals). Approve, reject with a reason, or tick several and approve them together. Undo is offered after each action.
+- **Inbox:** turn a collected item into a signal for review, or dismiss it.
+- **Requests:** mark founders invited or declined after you've contacted them yourself.
+- **Sources** (pause, resume, check now) and **Spend**.
+
+The terminal tools (`npm run review` and the rest) still work the same way.

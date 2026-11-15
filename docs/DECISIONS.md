@@ -2,6 +2,14 @@
 
 Short records of technical decisions, newest first. Product decisions live in `PLAN.md`.
 
+## 2026-11-15: Back office
+- **Static pages at `/admin`** (plain JavaScript, no build, same strict CSP), calling the existing admin API with the admin key as a Bearer token. The key is kept in `sessionStorage` (this tab only), never in `localStorage` or a cookie. Admin pages send `noindex` and `no-store`. Google sign-in replaces the key later.
+- **`POST /api/admin/review/batch`** applies up to 50 reviews, each under the same rules as a single review; failures are reported per item and don't stop the rest. Undo uses the existing `reopen` action, so the review log keeps everything.
+- **The server now refuses to verify a signal whose excerpt is still a search summary** (`needsExactExcerpt`, moved to `shared/signals.ts`). Before, only the terminal review tool checked this.
+- **`GET /api/admin/overview`** returns the counts the Overview page needs in one call. `waiting` matches the review queue (sample records included); `public_companies` counts verified, non-sample companies.
+- **Batch approval only for items whose checks passed** (company: site loads and names it; signal: company verified, excerpt is the page's words, page loads). That's a page rule to save clicks; the server rules are unchanged and still apply to every item.
+- Evidence is loaded three items at a time and 15 cards per page, so opening the queue doesn't flood outside sites.
+
 ## 2026-11-15: Optional Vercel copy of the site
 - **Vercel serves only the static `site/` folder** (`vercel.json`: no install, no build). `/api/*` is rewritten to the Cloudflare Worker, so the form keeps one database and the Worker stays the single back end. No secrets on Vercel.
 - **Same security headers** as `site/_headers`, checked by a test so the two copies can't drift.

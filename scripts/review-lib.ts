@@ -4,7 +4,9 @@
  * verified, which page must be checked) is still enforced by the server.
  */
 
-export const SUMMARY_PREFIX = "Search summary";
+import { needsExactExcerpt, SUMMARY_PREFIX } from "../shared/signals.ts";
+
+export { needsExactExcerpt, SUMMARY_PREFIX };
 
 export interface QueueItem {
   subject_type: "company" | "signal";
@@ -37,11 +39,6 @@ export interface ReviewSummary {
   skipped: number;
   failed: number;
   remaining: number;
-}
-
-/** True when a signal's excerpt is still Claude's search summary, not the source's own words. */
-export function needsExactExcerpt(excerpt: string | null | undefined): boolean {
-  return !excerpt || excerpt.trim().startsWith(SUMMARY_PREFIX);
 }
 
 function errorMessage(r: ApiResult): string {

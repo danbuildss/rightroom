@@ -9,7 +9,6 @@ import { signalInputSchema } from "../../shared/signals.ts";
 import {
   closeInboxItem,
   createWatchedSource,
-  GROK_DEFAULT_CAP_USD,
   getInboxItem,
   grokSpendThisMonth,
   listInbox,
@@ -18,6 +17,7 @@ import {
   runSource,
   updateWatchedSource,
 } from "../db/collector.ts";
+import { grokSpend } from "../db/overview.ts";
 import { createSignal, DuplicateSignalError } from "../db/signals.ts";
 import { ConflictError, NotFoundError } from "../db/util.ts";
 import type { AppEnv } from "../env.ts";
@@ -80,17 +80,7 @@ export const collector = new Hono<AppEnv>()
     }
   })
   // Pilot A spending this month (Talo's estimate; the xAI console limit is the hard stop).
-  .get("/spend", async (c) => {
-    const cap = Number(c.env.GROK_MONTHLY_CAP_USD ?? GROK_DEFAULT_CAP_USD);
-    const spent = await grokSpendThisMonth(c.env.DB);
-    return c.json({
-      provider: "xai",
-      month: new Date().toISOString().slice(0, 7),
-      estimated_usd: Math.round(spent * 100) / 100,
-      cap_usd: Number.isFinite(cap) ? cap : GROK_DEFAULT_CAP_USD,
-      key_configured: Boolean(c.env.XAI_API_KEY),
-    });
-  })
+  .get("/spend", async (c) => c.json(grokSpend(c.env, await grokSpendThisMonth(c.env.DB))))
   .get("/runs", async (c) => c.json({ runs: await listRuns(c.env.DB, c.req.query("source_id")) }))
 
   .get("/inbox", async (c) => {

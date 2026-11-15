@@ -256,3 +256,52 @@ export function explore(p: ExploreParams) {
   for (const [k, v] of Object.entries(p)) if (v !== undefined && v !== "") qs.set(k, String(v));
   return call<ExploreResponse>("GET", `/explore?${qs}`);
 }
+
+/* Home and the bell. */
+export interface HomeResponse {
+  today: string;
+  counts: { due: number; saved: number; signals_this_week: number };
+  due: {
+    id: string;
+    slug: string;
+    name: string;
+    stage: string;
+    follow_up_at: string;
+    days_late: number;
+    last_sent_at: string | null;
+    last_sent_via: string | null;
+  }[];
+  matches: {
+    slug: string;
+    name: string;
+    fit: { label: "strong" | "potential"; overall: number };
+    why: string;
+    latest: { type_label: string; date: string } | null;
+    saved: boolean;
+  }[];
+  signals: {
+    slug: string;
+    company: string;
+    saved: boolean;
+    type_label: string;
+    claim: string;
+    date: string;
+    last_verified_at: string;
+    source: string | null;
+  }[];
+  added: {
+    slug: string;
+    name: string;
+    type: OrgType | null;
+    sectors: string[];
+    added_at: string;
+    saved: { id: string; stage: string } | null;
+  }[];
+}
+export type UpdateItem =
+  | { kind: "follow_up"; slug: string; name: string; date: string; days_late: number; last_sent_at: string | null }
+  | { kind: "signal"; slug: string; name: string; date: string; type_label: string };
+export const homeApi = {
+  home: () => call<HomeResponse>("GET", "/home"),
+  updates: () => call<{ items: UpdateItem[]; count: number }>("GET", "/updates"),
+};

@@ -1,12 +1,14 @@
 import { type FormEvent, lazy, Suspense, useCallback, useEffect, useState } from "react";
-import { ApiError, api, pipeline, type View } from "./api.ts";
+import { ApiError, api, homeApi, pipeline, type UpdateItem, type View } from "./api.ts";
 import { markPrivyLogout } from "./authFlag.ts";
 import { Company } from "./Company.tsx";
 import { Discover } from "./Discover.tsx";
 import { Explore } from "./Explore.tsx";
+import { Home } from "./Home.tsx";
 import { ToastProvider } from "./motion.tsx";
+import { Shell, type Tab } from "./Nav.tsx";
 import { Pipeline } from "./Pipeline.tsx";
-import { Logo, Screen } from "./ui.tsx";
+import { Screen } from "./ui.tsx";
 
 // Privy (sign-in) is only downloaded when someone needs to sign in.
 const Auth = lazy(() => import("./Auth.tsx"));
@@ -37,7 +39,7 @@ type Stage =
       view: View;
       editing?: number;
       at?: number;
-      tab?: "explore" | "discover" | "company" | "saved" | "pipeline";
+      tab?: Tab;
       profile?: string;
     };
 
@@ -124,10 +126,15 @@ function FounderHome(props: {
 }) {
   const { stage, setStage, signOut, onDeleted } = props;
   const [savedCount, setSavedCount] = useState<number | null>(null);
+  const [updates, setUpdates] = useState<{ items: UpdateItem[]; count: number } | null>(null);
   const refreshCount = useCallback(() => {
     pipeline
       .list()
       .then((d) => setSavedCount(d.items.length))
+      .catch(() => undefined);
+    homeApi
+      .updates()
+      .then(setUpdates)
       .catch(() => undefined);
   }, []);
   // biome-ignore lint/correctness/useExhaustiveDependencies: refresh the count whenever the founder changes page
@@ -178,153 +185,140 @@ function FounderHome(props: {
     }
   };
 
-  const tab = stage.tab ?? "explore";
-  const go = (t: "explore" | "discover" | "company" | "saved" | "pipeline") =>
-    setStage({ kind: "app", view: stage.view, tab: t });
+  const tab: Tab = stage.tab ?? "home";
+  const go = (t: Tab) => setStage({ kind: "app", view: stage.view, tab: t });
+  const open = (slug: string) => setStage({ ...stage, profile: slug });
   const suggestion = profile.one_liner
     ? `e.g. Companies that could integrate with "${profile.one_liner.slice(0, 60)}" and help us reach more customers`
     : "e.g. Payments companies that could integrate our API and help us reach more businesses";
+  const BACK: Partial<Record<Tab, string>> = { home: "Home", explore: "Explore", discover: "Discover" };
+  const who = founder.name ?? founder.email ?? (founder.x_handle ? `@${founder.x_handle}` : "");
 
   return (
     <ToastProvider>
-      <div className="shell">
-        <aside className="side">
-          <Logo />
-          <nav aria-label="Workspace">
-            <button
-              type="button"
-              className={tab === "explore" ? "navi on" : "navi"}
-              aria-current={tab === "explore" ? "page" : undefined}
-              onClick={() => go("explore")}
-            >
-              Explore
-            </button>
-            <button
-              type="button"
-              className={tab === "discover" ? "navi on" : "navi"}
-              aria-current={tab === "discover" ? "page" : undefined}
-              onClick={() => go("discover")}
-            >
-              Discover
-            </button>
-            <button
-              type="button"
-              className={tab === "saved" ? "navi on" : "navi"}
-              aria-current={tab === "saved" ? "page" : undefined}
-              onClick={() => go("saved")}
-            >
-              Saved{" "}
-              {savedCount !== null ? (
-                <span className="ncount" key={savedCount}>
-                  {savedCount}
-                </span>
-              ) : null}
-            </button>
-            <button
-              type="button"
-              className={tab === "pipeline" ? "navi on" : "navi"}
-              aria-current={tab === "pipeline" ? "page" : undefined}
-              onClick={() => go("pipeline")}
-            >
-              Pipeline
-            </button>
-            <button
-              type="button"
-              className={tab === "company" ? "navi on" : "navi"}
-              aria-current={tab === "company" ? "page" : undefined}
-              onClick={() => go("company")}
-            >
-              Your company
-            </button>
-          </nav>
-          <div className="sidefoot">
-            {founder.name ?? founder.email ?? (founder.x_handle ? `@${founder.x_handle}` : "")}
-            <button type="button" className="linkbtn" onClick={signOut}>
-              Sign out
-            </button>
-          </div>
-        </aside>
-        <main className="wmain">
-          {/* Explore and Discover stay mounted while a company is open, so filters and results are kept. */}
-          <div hidden={tab !== "explore" || Boolean(stage.profile)}>
-            <Explore onOpen={(slug) => setStage({ ...stage, tab: "explore", profile: slug })} />
-          </div>
-          <div hidden={tab !== "discover" || Boolean(stage.profile)}>
-            <Discover
-              suggestion={suggestion}
-              onOpen={(slug) => setStage({ ...stage, tab: "discover", profile: slug })}
-            />
-          </div>
-          {(tab === "discover" || tab === "explore") && stage.profile ? (
-            <Company
-              slug={stage.profile}
-              backLabel={tab === "explore" ? "Explore" : "Discover"}
-              onBack={() => setStage({ ...stage, profile: undefined })}
-            />
-          ) : null}
-          {tab === "saved" || tab === "pipeline" ? (
-            <Pipeline
-              view={tab === "saved" ? "list" : "board"}
-              onCount={setSavedCount}
-              onOpenCompany={(slug) => setStage({ ...stage, tab: "discover", profile: slug })}
-            />
-          ) : null}
-          {tab !== "company" ? null : (
-            <div className="company">
-              <h1>Your company</h1>
-              <p className="sub">
-                Hi {first}. Your workspace is private to you. Discover uses these answers to rank companies.
-              </p>
-              <ul className="checklist">
-                <li>
-                  <div>
-                    <span className="k">You</span>
-                    {founder.name ?? "—"}
-                    {founder.role ? ` · ${founder.role}` : ""}
-                  </div>
-                  <button type="button" className="linkbtn" onClick={() => setStage({ ...stage, editing: 1 })}>
-                    Edit
-                  </button>
-                </li>
-                <li>
-                  <div>
-                    <span className="k">Company</span>
-                    {[profile.company_name, profile.website?.replace(/^https?:\/\//, "")].filter(Boolean).join(" · ") ||
-                      "—"}
-                    {profile.one_liner ? <span className="d">{profile.one_liner}</span> : null}
-                  </div>
-                  <button type="button" className="linkbtn" onClick={() => setStage({ ...stage, editing: 2 })}>
-                    Edit
-                  </button>
-                </li>
-                <li>
-                  <div>
-                    <span className="k">Partners wanted</span>
-                    {label(GOALS, profile.goals) || "—"}
-                  </div>
-                  <button type="button" className="linkbtn" onClick={() => setStage({ ...stage, editing: 3 })}>
-                    Edit
-                  </button>
-                </li>
-                <li>
-                  <div>
-                    <span className="k">Markets</span>
-                    {label(MARKETS, profile.markets) || "—"}
-                  </div>
-                  <button type="button" className="linkbtn" onClick={() => setStage({ ...stage, editing: 4 })}>
-                    Edit
-                  </button>
-                </li>
-              </ul>
-              <p className="fine">
-                <button type="button" className="linkbtn" onClick={deleteAccount}>
-                  Delete my account and data
+      <Shell
+        tab={tab}
+        go={go}
+        savedCount={savedCount}
+        updates={updates}
+        onPickUpdate={(u) =>
+          u.kind === "follow_up" ? go("pipeline") : setStage({ ...stage, tab: "home", profile: u.slug })
+        }
+      >
+        {/* Home, Explore and Discover stay mounted while a company is open, so filters and results are kept. */}
+        <div hidden={tab !== "home" || Boolean(stage.profile)}>
+          {tab === "home" ? <Home firstName={first} onOpen={open} go={go} /> : null}
+        </div>
+        <div hidden={tab !== "explore" || Boolean(stage.profile)}>
+          <Explore onOpen={open} />
+        </div>
+        <div hidden={tab !== "discover" || Boolean(stage.profile)}>
+          <Discover suggestion={suggestion} onOpen={open} />
+        </div>
+        {BACK[tab] && stage.profile ? (
+          <Company
+            slug={stage.profile}
+            backLabel={BACK[tab]}
+            onBack={() => setStage({ ...stage, profile: undefined })}
+          />
+        ) : null}
+        {tab === "saved" || tab === "pipeline" ? (
+          <Pipeline
+            view={tab === "saved" ? "list" : "board"}
+            onCount={setSavedCount}
+            onOpenCompany={(slug) => setStage({ ...stage, tab: "explore", profile: slug })}
+          />
+        ) : null}
+        {tab !== "company" ? null : (
+          <div className="company">
+            <h1>Your company</h1>
+            <p className="sub">
+              Hi {first}. Your workspace is private to you. Discover and Home use these answers to rank companies.
+            </p>
+            <ul className="checklist">
+              <li>
+                <div>
+                  <span className="k">You</span>
+                  {founder.name ?? "—"}
+                  {founder.role ? ` · ${founder.role}` : ""}
+                </div>
+                <button type="button" className="linkbtn" onClick={() => setStage({ ...stage, editing: 1 })}>
+                  Edit
                 </button>
+              </li>
+              <li>
+                <div>
+                  <span className="k">Company</span>
+                  {[profile.company_name, profile.website?.replace(/^https?:\/\//, "")].filter(Boolean).join(" · ") ||
+                    "—"}
+                  {profile.one_liner ? <span className="d">{profile.one_liner}</span> : null}
+                </div>
+                <button type="button" className="linkbtn" onClick={() => setStage({ ...stage, editing: 2 })}>
+                  Edit
+                </button>
+              </li>
+              <li>
+                <div>
+                  <span className="k">Partners wanted</span>
+                  {label(GOALS, profile.goals) || "—"}
+                </div>
+                <button type="button" className="linkbtn" onClick={() => setStage({ ...stage, editing: 3 })}>
+                  Edit
+                </button>
+              </li>
+              <li>
+                <div>
+                  <span className="k">Markets</span>
+                  {label(MARKETS, profile.markets) || "—"}
+                </div>
+                <button type="button" className="linkbtn" onClick={() => setStage({ ...stage, editing: 4 })}>
+                  Edit
+                </button>
+              </li>
+            </ul>
+          </div>
+        )}
+        {tab !== "account" ? null : (
+          <div className="company">
+            <h1>Account &amp; settings</h1>
+            <p className="sub">How you sign in, and your data.</p>
+            <ul className="checklist">
+              <li>
+                <div>
+                  <span className="k">Signed in as</span>
+                  {who || "—"}
+                  <span className="d">
+                    {[founder.email, founder.x_handle ? `X: @${founder.x_handle}` : null].filter(Boolean).join(" · ")}
+                  </span>
+                </div>
+                <button type="button" className="linkbtn" onClick={signOut}>
+                  Sign out
+                </button>
+              </li>
+              <li>
+                <div>
+                  <span className="k">Your data</span>
+                  Your workspace, saved companies, pipeline, notes and drafts are private to you. Rightroom never
+                  contacts anyone for you.
+                  <span className="d">
+                    <a href="/privacy">Privacy policy</a> · <a href="/terms">Terms</a>
+                  </span>
+                </div>
+              </li>
+            </ul>
+            <div className="danger">
+              <h2>Delete your account</h2>
+              <p className="sub">
+                Deletes your workspace and everything in it: company answers, saved companies, pipeline, notes and
+                drafts. This can't be undone.
               </p>
+              <button type="button" className="btn btn-danger" onClick={deleteAccount}>
+                Delete my account and data
+              </button>
             </div>
-          )}
-        </main>
-      </div>
+          </div>
+        )}
+      </Shell>
     </ToastProvider>
   );
 }

@@ -2,6 +2,22 @@
 
 Short records of technical decisions, newest first. Product decisions live in `PLAN.md`.
 
+## 2026-11-15: Navigation, Home and the bell (Explore, step 3)
+- **`GET /api/app/home`**:
+  - counts (follow-ups due, saved, verified signals in the last 7 days)
+  - the follow-ups due, oldest first
+  - the top 3 Strong/Potential fits
+  - the latest verified signals (by event date, or the day found when there's none), each with its primary source
+  - the 4 most recently added verified companies
+
+  It's all built from the founder's pipeline and verified records. An empty section says so.
+- **`GET /api/app/updates` (the bell):** follow-ups due, plus verified signals from the last 14 days on companies the founder saved. The blue dot shows only when there's at least one item.
+- **Navigation:**
+  - Home (the landing tab), Explore (Core), Discover, Saved and Pipeline, each with a one-line description
+  - Your company and Account & settings at the bottom
+  - On phones, a top bar with a menu button opens the sidebar as a drawer. While closed, the drawer is `inert` so it can't be tabbed into; Escape closes it and returns focus to the menu button.
+- **Account & settings** now holds sign-out, links to the privacy policy and terms, and account deletion (moved from Your company).
+
 ## 2026-11-15: Explore (Explore, step 2)
 - **`GET /api/app/explore`** lists every verified, non-sample company for a signed-in founder, with search (all words must match the name, domain, description or category labels), filters (type, sector, country, partner goal, stage, audience), four sorts (newest signal, best fit, name, recently added) and pages of 24. It reuses Discover's loader, so fit, signals and saved state match everywhere.
 - **Counts:** the category tiles count the search result; the other filters count within the chosen category. A tile or filter with nothing in it is not shown.

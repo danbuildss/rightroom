@@ -2,6 +2,11 @@
 
 Short records of technical decisions, newest first. Product decisions live in `PLAN.md`.
 
+## 2026-11-15: Faster founder app (audit B4)
+- **Privy loads only for sign-in.** The workspace (`App.tsx`, Discover, Company, Pipeline, drafts) has no Privy import; `Auth.tsx` (PrivyProvider and the sign-in screens) is loaded with `React.lazy` only when there's no Rightroom session. Signed-in founders load about 259 KB of JavaScript instead of 1.9 MB. A test keeps Privy out of the workspace files.
+- **The sign-in screen appears instantly** as a placeholder with disabled buttons, and becomes live when Privy has loaded.
+- **Signing out or deleting an account also ends Privy's session** the next time the sign-in part loads (a `localStorage` flag plus a prop), so Privy can't sign the founder straight back in.
+
 ## 2026-11-15: Brand assets and launch basics (audit batch 1)
 - **Dan's logo** (`brand/assets/rightroom-icon.svg`) replaces the earlier redraw everywhere. The wordmark lockups are Geist 800 converted to outlines: made from a fixed-weight instance (fontTools) because opentype.js broke on variable outlines.
 - **Web icons** (SVG plus 32/48 px PNG favicons, 180 px Apple touch icon, 192/512 px and maskable app icons) and a web manifest are linked on every page.

@@ -1,9 +1,13 @@
-import { useIdentityToken, useLoginWithEmail, useLoginWithOAuth, usePrivy } from "@privy-io/react-auth";
-import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { ApiError, api, type Identity, pipeline, type View } from "./api.ts";
+import { type FormEvent, lazy, Suspense, useCallback, useEffect, useState } from "react";
+import { ApiError, api, pipeline, type View } from "./api.ts";
+import { markPrivyLogout } from "./authFlag.ts";
 import { Company } from "./Company.tsx";
 import { Discover } from "./Discover.tsx";
 import { Pipeline } from "./Pipeline.tsx";
+import { Logo, Screen } from "./ui.tsx";
+
+// Privy (sign-in) is only downloaded when someone needs to sign in.
+const Auth = lazy(() => import("./Auth.tsx"));
 
 const GOALS = [
   ["integrations", "Integrations", "Build into each other's product"],
@@ -25,10 +29,7 @@ const label = (list: readonly (readonly string[])[], ids: string[]) =>
 
 type Stage =
   | { kind: "loading" }
-  | { kind: "signin" }
-  | { kind: "code"; email: string }
-  | { kind: "checking" }
-  | { kind: "not_invited"; identity: Identity; sent?: boolean }
+  | { kind: "auth"; logoutFirst?: boolean }
   | {
       kind: "app";
       view: View;
@@ -38,338 +39,78 @@ type Stage =
       profile?: string;
     };
 
-function Logo() {
-  return (
-    <a className="logo" href="/" aria-label="rightroom home">
-      <svg viewBox="-4 -4 128 144" aria-hidden="true">
-        <path fill="#0057FF" d="M 0 32 L 120 0 L 120 136 L 43 116 L 84 105 L 84 40 L 34 54 L 34 115 L 0 134 Z" />
-      </svg>
-      rightroom
-    </a>
-  );
-}
-
-function Screen({ right, children }: { right?: ReactNode; children: ReactNode }) {
-  return (
-    <div className="wrap">
-      <main className="screen">
-        <div className="bar">
-          <Logo />
-          <small>{right ?? "Invite-only pilot"}</small>
-        </div>
-        <div className="body">{children}</div>
-      </main>
-    </div>
-  );
-}
-
-export function App() {
-  const { ready, authenticated, logout } = usePrivy();
-  const { identityToken } = useIdentityToken();
-  const [stage, setStage] = useState<Stage>({ kind: "loading" });
-  const [error, setError] = useState("");
-  const exchanging = useRef(false);
-
-  // 1. Already have a Rightroom session?
-  useEffect(() => {
-    api
-      .me()
-      .then((view) => setStage({ kind: "app", view }))
-      .catch(() => setStage((s) => (s.kind === "loading" ? { kind: "signin" } : s)));
-  }, []);
-
-  // 2. Signed in with Privy but no Rightroom session yet: exchange the identity token once.
-  useEffect(() => {
-    if (!ready || !authenticated || stage.kind === "app" || stage.kind === "not_invited" || exchanging.current) return;
-    if (stage.kind === "loading") return;
-    if (!identityToken) {
-      setStage({ kind: "checking" });
-      return;
-    }
-    exchanging.current = true;
-    setStage({ kind: "checking" });
-    api
-      .session(identityToken)
-      .then((r) =>
-        setStage(r.status === "active" ? { kind: "app", view: r } : { kind: "not_invited", identity: r.identity }),
-      )
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : "Sign-in failed.");
-        setStage({ kind: "signin" });
-      })
-      .finally(() => {
-        exchanging.current = false;
-      });
-  }, [ready, authenticated, identityToken, stage.kind]);
-
-  const signOut = useCallback(async () => {
-    await api.signOut().catch(() => undefined);
-    await logout().catch(() => undefined);
-    setError("");
-    setStage({ kind: "signin" });
-  }, [logout]);
-
-  const onLoginError = useCallback((e: unknown) => {
-    setError(typeof e === "string" && e === "exited_auth_flow" ? "" : "Sign-in didn't finish. Please try again.");
-  }, []);
-
-  switch (stage.kind) {
-    case "loading":
-      return (
-        <Screen>
-          <div className="loading">Loading…</div>
-        </Screen>
-      );
-    case "checking":
-      return (
-        <Screen>
-          <div className="loading">Checking your invite…</div>
-          {ready && authenticated && !identityToken ? (
-            <p className="err">
-              Sign-in worked, but Rightroom couldn't confirm who you are yet. Refresh the page; if it keeps happening,
-              tell us.
-            </p>
-          ) : null}
-        </Screen>
-      );
-    case "signin":
-    case "code":
-      return <SignIn stage={stage} setStage={setStage} error={error} setError={setError} onLoginError={onLoginError} />;
-    case "not_invited":
-      return <NotInvited stage={stage} setStage={setStage} identityToken={identityToken} signOut={signOut} />;
-    case "app":
-      return <FounderHome stage={stage} setStage={setStage} signOut={signOut} logout={logout} />;
-  }
-}
-
-function SignIn(props: {
-  stage: Extract<Stage, { kind: "signin" | "code" }>;
-  setStage: (s: Stage) => void;
-  error: string;
-  setError: (e: string) => void;
-  onLoginError: (e: unknown) => void;
-}) {
-  const { stage, setStage, error, setError, onLoginError } = props;
-  const { initOAuth, loading: oauthLoading } = useLoginWithOAuth({ onError: onLoginError });
-  const { sendCode, loginWithCode } = useLoginWithEmail({ onError: onLoginError });
-  const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const oauth = async (provider: "twitter" | "google") => {
-    setError("");
-    try {
-      await initOAuth({ provider });
-    } catch {
-      setError("Couldn't start sign-in. Please try again.");
-    }
-  };
-  const submitEmail = async (e: FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      await sendCode({ email });
-      setStage({ kind: "code", email });
-    } catch {
-      setError("Couldn't send the code. Check the email address and try again.");
-    } finally {
-      setBusy(false);
-    }
-  };
-  const submitCode = async (e: FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      await loginWithCode({ code: code.trim() });
-      setStage({ kind: "checking" });
-    } catch {
-      setError("That code didn't work. Check it, or send a new one.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  if (stage.kind === "code") {
-    return (
-      <Screen>
-        <h1>Check your email</h1>
-        <p className="sub">We sent a 6-digit code to {stage.email}.</p>
-        <form onSubmit={submitCode}>
-          <label htmlFor="code">Code</label>
-          <input
-            id="code"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={6}
-            required
-            value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-          />
-          <button className="btn btn-blue" type="submit" disabled={busy || code.length < 6}>
-            Continue
-          </button>
-        </form>
-        {error ? (
-          <p className="err" role="alert">
-            {error}
-          </p>
-        ) : null}
-        <p className="fine">
-          Didn't get it?{" "}
-          <button
-            type="button"
-            className="linkbtn"
-            onClick={() => sendCode({ email: stage.email }).catch(() => undefined)}
-          >
-            Send again
-          </button>{" "}
-          ·{" "}
-          <button type="button" className="linkbtn" onClick={() => setStage({ kind: "signin" })}>
-            Use another way
-          </button>
-        </p>
-      </Screen>
-    );
-  }
-
+/** The sign-in screen as it looks, shown instantly while the sign-in code loads. */
+function SignInPlaceholder() {
   return (
     <Screen>
       <h1>Sign in to Rightroom</h1>
       <p className="sub">Use the account you gave when you requested access.</p>
-      <button type="button" className="btn prov" onClick={() => oauth("twitter")} disabled={oauthLoading}>
+      <button type="button" className="btn prov" disabled>
         <span className="ic x" aria-hidden="true">
           𝕏
         </span>
         Continue with X
       </button>
-      <button type="button" className="btn prov" onClick={() => oauth("google")} disabled={oauthLoading}>
+      <button type="button" className="btn prov" disabled>
         <span className="ic g" aria-hidden="true">
           G
         </span>
         Continue with Google
       </button>
       <div className="or">or</div>
-      <form onSubmit={submitEmail}>
-        <label htmlFor="email">Email</label>
-        <input
-          id="email"
-          type="email"
-          autoComplete="email"
-          required
-          placeholder="you@company.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <button className="btn btn-blue" type="submit" disabled={busy}>
-          Email me a code
-        </button>
-      </form>
-      {error ? (
-        <p className="err" role="alert">
-          {error}
-        </p>
-      ) : null}
-      <p className="fine">
-        We only receive your name and email or X handle. We never post for you or read your messages.
-        <br />
-        By signing in you agree to our <a href="/terms">terms</a> and <a href="/privacy">privacy policy</a>.
-        <br />
-        Not invited yet? <a href="/#access">Request access</a>
+      <label htmlFor="email-wait">Email</label>
+      <input id="email-wait" type="email" placeholder="you@company.com" disabled />
+      <button type="button" className="btn btn-blue" disabled>
+        Email me a code
+      </button>
+      <p className="fine" role="status">
+        Getting sign-in ready…
       </p>
     </Screen>
   );
 }
 
-function NotInvited(props: {
-  stage: Extract<Stage, { kind: "not_invited" }>;
-  setStage: (s: Stage) => void;
-  identityToken: string | null;
-  signOut: () => void;
-}) {
-  const { stage, setStage, identityToken, signOut } = props;
-  const [goal, setGoal] = useState("");
-  const [website, setWebsite] = useState("");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const who = stage.identity;
-  const display = who.name ?? who.email ?? (who.x_handle ? `@${who.x_handle}` : "You");
+export function App() {
+  const [stage, setStage] = useState<Stage>({ kind: "loading" });
 
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!identityToken) return setError("Please sign in again.");
-    setBusy(true);
-    setError("");
-    try {
-      await api.requestAccess(identityToken, goal, website);
-      setStage({ ...stage, sent: true });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't send. Please try again.");
-    } finally {
-      setBusy(false);
-    }
-  };
+  // Already have a Rightroom session? Then Privy never loads.
+  useEffect(() => {
+    api
+      .me()
+      .then((view) => setStage({ kind: "app", view }))
+      .catch(() => setStage((s) => (s.kind === "loading" ? { kind: "auth" } : s)));
+  }, []);
 
+  const onSignedIn = useCallback((view: View) => setStage({ kind: "app", view }), []);
+  const signedOut = useCallback(() => {
+    markPrivyLogout();
+    setStage({ kind: "auth", logoutFirst: true });
+  }, []);
+
+  if (stage.kind === "loading") {
+    return (
+      <Screen>
+        <div className="loading">Loading…</div>
+      </Screen>
+    );
+  }
+  if (stage.kind === "auth") {
+    return (
+      <Suspense fallback={<SignInPlaceholder />}>
+        <Auth onSignedIn={onSignedIn} logoutFirst={Boolean(stage.logoutFirst)} />
+      </Suspense>
+    );
+  }
   return (
-    <Screen
-      right={
-        <button type="button" className="linkbtn" onClick={signOut}>
-          Sign out
-        </button>
-      }
-    >
-      <div className="who">
-        <span className="avatar" aria-hidden="true">
-          {display.replace("@", "").charAt(0).toUpperCase()}
-        </span>
-        <div>
-          <b>{display}</b>
-          <small>{who.x_handle ? `@${who.x_handle} on X` : who.email}</small>
-        </div>
-      </div>
-      {stage.sent ? (
-        <>
-          <h1>Thanks, we've got your request.</h1>
-          <p className="sub">You'll hear from us once there's a place for you in the pilot.</p>
-        </>
-      ) : (
-        <>
-          <h1>You're not on the pilot list yet</h1>
-          <p className="sub">Rightroom is invite-only for now. Tell us what you're building and we'll be in touch.</p>
-          <form onSubmit={submit}>
-            <label htmlFor="goal">What partnership are you looking for?</label>
-            <textarea
-              id="goal"
-              required
-              minLength={10}
-              maxLength={1000}
-              value={goal}
-              onChange={(e) => setGoal(e.target.value)}
-            />
-            <label htmlFor="site">Company website (optional)</label>
-            <input
-              id="site"
-              maxLength={300}
-              placeholder="https://"
-              value={website}
-              onChange={(e) => setWebsite(e.target.value)}
-            />
-            <button className="btn btn-blue" type="submit" disabled={busy}>
-              Request access
-            </button>
-          </form>
-          {error ? (
-            <p className="err" role="alert">
-              {error}
-            </p>
-          ) : null}
-          <p className="fine">
-            Your {who.x_handle ? "X handle" : "email"} is attached to the request, so there's nothing else to fill in.
-          </p>
-        </>
-      )}
-    </Screen>
+    <FounderHome
+      stage={stage}
+      setStage={setStage}
+      signOut={async () => {
+        await api.signOut().catch(() => undefined);
+        signedOut();
+      }}
+      onDeleted={signedOut}
+    />
   );
 }
 
@@ -377,9 +118,9 @@ function FounderHome(props: {
   stage: Extract<Stage, { kind: "app" }>;
   setStage: (s: Stage) => void;
   signOut: () => void;
-  logout: () => Promise<void>;
+  onDeleted: () => void;
 }) {
-  const { stage, setStage, signOut, logout } = props;
+  const { stage, setStage, signOut, onDeleted } = props;
   const [savedCount, setSavedCount] = useState<number | null>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: refresh the count whenever the founder changes page
   useEffect(() => {
@@ -422,8 +163,7 @@ function FounderHome(props: {
     if (!window.confirm("Delete your Rightroom account and everything you've entered? This can't be undone.")) return;
     try {
       await api.deleteAccount();
-      await logout().catch(() => undefined);
-      setStage({ kind: "signin" });
+      onDeleted();
     } catch (err) {
       if (err instanceof ApiError) window.alert(err.message);
     }

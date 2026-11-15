@@ -177,3 +177,22 @@ describe("brand and sharing", () => {
     expect(readFileSync("brand/assets/rightroom-logo.svg", "utf8")).not.toContain("NaN");
   });
 });
+
+describe("founder app loading", () => {
+  it("keeps Privy out of the workspace: only the lazily loaded sign-in part imports it", () => {
+    for (const f of [
+      "app/src/main.tsx",
+      "app/src/App.tsx",
+      "app/src/Discover.tsx",
+      "app/src/Company.tsx",
+      "app/src/Pipeline.tsx",
+      "app/src/DraftPanel.tsx",
+      "app/src/ui.tsx",
+      "app/src/authFlag.ts",
+    ]) {
+      expect(readFileSync(f, "utf8"), f).not.toMatch(/@privy-io/);
+    }
+    expect(readFileSync("app/src/Auth.tsx", "utf8")).toContain("@privy-io/react-auth");
+    expect(readFileSync("app/src/App.tsx", "utf8")).toMatch(/lazy\(\(\) => import\("\.\/Auth\.tsx"\)\)/);
+  });
+});

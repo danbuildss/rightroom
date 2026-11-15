@@ -2,6 +2,15 @@
 
 Short records of technical decisions, newest first. Product decisions live in `PLAN.md`.
 
+## 2026-11-15: Motion (audit batch 4: M1–M8, F4)
+- **CSS animations, no motion library.** Everything is CSS keyframes and transitions plus a little React state (`app/src/motion.tsx`) and plain JavaScript on the site; no new dependencies. Each animation is listed in `brand/BRAND.md` and switched off under `prefers-reduced-motion`, where the finished state shows at once.
+- **Toasts (`ToastProvider`, `useToast`)** confirm Save, Move, Remove, Copy, Draft saved and Notes saved, in one polite live region. Undo is offered for Save (removes the new pipeline entry) and Move (moves back). Remove keeps its confirm and has no Undo, because restoring would lose the timeline.
+- **Pipeline moves are optimistic:** the card moves at once, then saves, then the list reloads from the server. Drag and drop uses native HTML drag events and is only offered on devices with a fine pointer and hover; the Move menu stays for phones and keyboards.
+- **Hover card** on pipeline company names reuses the company page's API (`GET /api/app/companies/:slug`), fetched once per company after a 350ms hover and cached for the session. Mouse only and `aria-hidden`; the same facts are on the company page.
+- **Weighted fit meter** draws the fixed formula's weights (30/25/20/15/10) as segment widths, each filled to its 0–5 score. It only displays the factor scores; the overall number still comes from the formula.
+- **The homepage demo** keeps its HTML as the finished state, so without JavaScript or with reduced motion it is shown as is; it plays once when 40% of it is in view. The logo's door swing plays once per browser (`localStorage`), and not at all if storage is blocked.
+- **Sign-in message:** if Privy signs someone in but no identity token arrives within 4 seconds, the screen says it's a setup issue rather than asking them to refresh.
+
 ## 2026-11-15: Quality fixes (audit batch 3: F2, F3, F5, F8)
 - **Accessibility:** admin Requests tabs are a pressed-button group (not a half-built tablist); action columns have hidden header text; the admin sign-in is a `main` landmark; side panels are `div role="dialog"`; heading levels no longer skip (Discover card names are `h2`, detail headings `h3`). The browser scan now passes on all 24 screens.
 - **Automated scan in the tests (`tests/a11y.test.ts`):** axe runs in jsdom over the static pages and server-rendered app screens (a Discover card with details open, the sign-in screen). Colour contrast needs real layout, so it stays in the browser audit. A self-check makes sure the scanner really flags problems.

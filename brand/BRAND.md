@@ -71,7 +71,10 @@ Sentence case for headings and buttons.
 - Buttons: 44px tall minimum, 10px radius. Primary = Electric Blue; secondary = white with a 1px border; dark = ink.
 - Pills: fully rounded, 12–13px medium.
 - Focus is always visible (2px blue outline).
-- Motion: one short fade-in on the hero; hover lifts; nothing on scroll. Respect reduced motion.
+- Motion: short, purposeful and done once. Ease out, 0.2–0.45s for small things, under 1.5s for the one-time brand moments. Allowed:
+  - Site: a fade-in on the hero; the header logo's door swings open and back once per visitor; the Discover illustration types its search, pops its tags and raises its cards once when it scrolls into view. No other scroll effects, nothing that loops.
+  - App: shimmer placeholders and "Reading verified sources…" while searching; the score counts up once and the weighted fit meter fills; panels slide in over a soft shade; details expand smoothly; pipeline cards lift when dragged and settle when dropped, with a small burst on Partnered; toasts slide up (with Undo where it makes sense); the Save star pops and the Saved count rolls; cards lift 2px on hover; a hover card on pipeline company names.
+  - Reduced motion: every animation is off and the finished state shows at once. Nothing depends on motion to make sense.
 - Every screen works at phone width with no sideways scrolling.
 - Example or demo data always carries a visible label ("Illustration with example companies").
 

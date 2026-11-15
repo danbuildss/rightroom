@@ -226,3 +226,20 @@ footer a{text-decoration:underline;text-underline-offset:3px}
 .hero .inner>*{z-index:2}
 .hero .inner>.watermark{position:absolute;z-index:1;left:50%;top:50%;transform:translate(-50%,-50%);height:min(620px,112%);width:auto;aspect-ratio:128/144;opacity:.07;pointer-events:none}
 @media (max-width:820px){.hero .inner>.watermark{height:min(420px,90%);opacity:.06}}
+
+/* Motion: the doorway opens once (M8) and the Discover illustration plays once (M1). Reduced motion: nothing moves. */
+@media (prefers-reduced-motion:no-preference){
+  .nav .logo.door svg{transform-origin:0 50%;animation:door 1.3s cubic-bezier(.4,0,.2,1) .35s both}
+  @keyframes door{0%{transform:perspective(160px) rotateY(0)}45%{transform:perspective(160px) rotateY(-58deg)}70%{transform:perspective(160px) rotateY(-58deg)}100%{transform:perspective(160px) rotateY(0)}}
+  .demo .understood b,.demo .understood u,.demo .chips,.demo .listhead,.demo .card{opacity:0}
+  .demo.s1 .understood b,.demo.s1 .understood u{animation:tok .35s cubic-bezier(.2,.8,.2,1) both}
+  .demo.s1 .understood b:nth-of-type(2){animation-delay:.12s}
+  .demo.s1 .understood b:nth-of-type(3){animation-delay:.24s}
+  .demo.s1 .understood u{animation-delay:.36s}
+  .demo.s1 .chips,.demo.s1 .listhead{animation:rise .4s ease .45s both}
+  .demo.s1 .card{animation:rise .5s cubic-bezier(.2,.8,.2,1) .65s both}
+  .demo.s1 .card+.card{animation-delay:.8s}
+  @keyframes tok{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:none}}
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  .understood b,.understood u{display:inline-block}
+}

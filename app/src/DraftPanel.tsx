@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { drafts, type GeneratedDraft, type SavedDraft, type Variant } from "./api.ts";
+import { useToast } from "./motion.tsx";
 import { useFocusTrap } from "./ui.tsx";
 
 const MAX: Record<Variant, number> = { first: 1200, shorter: 600, follow_up: 800 };
@@ -63,6 +64,7 @@ export function DraftPanel({
     return () => window.removeEventListener("keydown", onKey);
   }, [loadList, onClose]);
 
+  const toast = useToast();
   const flash = (text: string) => {
     setStatus(text);
     setTimeout(() => setStatus(""), 3500);
@@ -96,7 +98,7 @@ export function DraftPanel({
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(message);
-      flash(
+      toast(
         hasPlaceholder
           ? "Copied. Replace the [ … ] part before sending."
           : "Copied. Paste it into their channel and send it yourself.",
@@ -107,7 +109,7 @@ export function DraftPanel({
   };
   const save = async () => {
     if (await persist()) {
-      flash("Draft saved to your workspace.");
+      toast("Draft saved to your workspace.");
       loadList();
     }
   };

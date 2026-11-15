@@ -2,6 +2,10 @@
 
 Short records of technical decisions, newest first. Product decisions live in `PLAN.md`.
 
+## 2026-11-15: Optional Vercel copy of the site
+- **Vercel serves only the static `site/` folder** (`vercel.json`: no install, no build). `/api/*` is rewritten to the Cloudflare Worker, so the form keeps one database and the Worker stays the single back end. No secrets on Vercel.
+- **Same security headers** as `site/_headers`, checked by a test so the two copies can't drift.
+
 ## 2026-11-15: Marketing site and Request access
 - **The site is static files in `site/`, served by the same Worker** with Workers Static Assets (free). `/api/*` always runs the Worker first; any other unknown path gets `site/404.html`.
 - **No third-party requests:** Geist fonts are self-hosted (OFL licence in `site/fonts/OFL.txt`), no analytics, no CDN scripts. A strict Content Security Policy in `site/_headers` allows only the site's own files, so the HTML has no inline scripts or style attributes (a test checks this).

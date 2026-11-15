@@ -37,3 +37,24 @@ describe("marketing site", () => {
     expect(names.sort()).toEqual(Object.keys(accessRequestSchema.shape).sort());
   });
 });
+
+describe("Vercel copy of the site", () => {
+  const vercel = JSON.parse(readFileSync("vercel.json", "utf8")) as {
+    outputDirectory: string;
+    rewrites: { source: string; destination: string }[];
+    headers: { source: string; headers: { key: string; value: string }[] }[];
+  };
+
+  it("serves the same site folder and sends /api to the Cloudflare Worker", () => {
+    expect(vercel.outputDirectory).toBe("site");
+    expect(vercel.rewrites).toEqual([
+      { source: "/api/:path*", destination: "https://rightroom.danewurum01.workers.dev/api/:path*" },
+    ]);
+  });
+
+  it("uses the same security headers as Cloudflare", () => {
+    const all = vercel.headers.find((h) => h.source === "/(.*)")?.headers ?? [];
+    for (const { key, value } of all) expect(headers).toContain(`${key}: ${value}`);
+    expect(all.map((h) => h.key)).toContain("Content-Security-Policy");
+  });
+});

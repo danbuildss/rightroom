@@ -78,3 +78,32 @@ describe("back office page", () => {
     expect(js).not.toMatch(/style="/);
   });
 });
+
+describe("privacy and terms pages", () => {
+  const privacy = readFileSync("site/privacy.html", "utf8");
+  const terms = readFileSync("site/terms.html", "utf8");
+
+  it("exist, are linked from the site and the sign-in screen, and work under the strict CSP", () => {
+    for (const page of [privacy, terms]) {
+      expect(page).not.toMatch(/\sstyle=/);
+      expect(page).not.toMatch(/<script/);
+    }
+    expect(html).toContain('href="/privacy.html"');
+    expect(html).toContain('href="/terms.html"');
+    expect(readFileSync("app/src/App.tsx", "utf8")).toContain('href="/privacy.html"');
+  });
+
+  it("contain no unfilled placeholders and say plainly what's still missing", () => {
+    for (const page of [privacy, terms]) {
+      expect(page).not.toMatch(/\[[^\]]*\]/);
+      expect(page).toMatch(/isn't a registered company yet/);
+    }
+  });
+
+  it("match what the product does", () => {
+    expect(privacy).toContain("__Host-rr_session");
+    expect(privacy).toMatch(/12 months/);
+    expect(privacy).toMatch(/never guess email addresses/);
+    expect(terms).toMatch(/Rightroom never sends messages/);
+  });
+});

@@ -69,9 +69,9 @@ Never paste the key into chat or commit it.
 
 - `npx wrangler d1 export DB --remote --output backup-YYYY-MM-DD.sql` (keep the file private; never commit it).
 
-## Optional: a second copy of the site on Vercel
+## The website on Vercel (main host)
 
-The marketing site can also be served from Vercel (Somehow Internet team). `vercel.json` does the setup:
+The website is served from Vercel (Somehow Internet team); Cloudflare runs the API, the founder app back end and the database. `vercel.json` does the setup:
 it serves the `site/` folder as it is and forwards every `/api/...` request to the Cloudflare Worker,
 so the Request access form saves to the same database. Cloudflare stays the only back end.
 
@@ -113,3 +113,5 @@ Who can get in: people you mark **Invited** in `/admin` → Requests, or add wit
 X handle). Everyone else sees "You're not on the pilot list yet" and can request access. `/admin` → Founders lists who
 has signed up. Deleting an account in the app removes everything Rightroom stores; their login record at Privy can be
 removed in the Privy dashboard (Users).
+
+For founder sign-in on the Vercel address, add that address (for example `https://<project>.vercel.app`, or the custom domain later) to **Allowed domains** in the Privy dashboard. If the founder API ever rejects changes from Vercel with "Requests must come from Rightroom", add the host to `APP_ORIGIN_HOSTS` in `wrangler.jsonc` (comma-separated).

@@ -146,3 +146,15 @@ export async function reviewAccessRequest(
   if (!row) throw new NotFoundError("Access request not found.");
   return row;
 }
+
+/** Access requests are kept for 12 months after Dan's decision (privacy policy), then deleted. */
+export const ACCESS_RETENTION_DAYS = 365;
+
+export async function purgeOldAccessRequests(db: D1Database, now = new Date()): Promise<number> {
+  const cutoff = new Date(now.getTime() - ACCESS_RETENTION_DAYS * 86_400_000).toISOString();
+  const res = await db
+    .prepare("DELETE FROM access_requests WHERE status IN ('invited', 'declined') AND updated_at < ?")
+    .bind(cutoff)
+    .run();
+  return res.meta.changes ?? 0;
+}

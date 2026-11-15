@@ -2,6 +2,11 @@
 
 Short records of technical decisions, newest first. Product decisions live in `PLAN.md`.
 
+## 2026-11-15: Privacy policy, terms, retention and the Vercel host
+- **`/privacy.html` and `/terms.html`** describe only what the product does today. They say plainly that Somehow Internet isn't registered yet and that the legal entity, a contact email and the governing law come before public launch. Linked from the site footer, the access form and the sign-in screen. A lawyer should review them before launch.
+- **Access requests are deleted 12 months after the decision** (hourly Cron, `purgeOldAccessRequests`). New, undecided requests are kept.
+- **Vercel is the main website host;** Cloudflare runs the API and database. The founder API now accepts changes from the Vercel address: the host Vercel forwards from (`x-forwarded-host`) or hosts listed in `APP_ORIGIN_HOSTS`. JSON-only bodies and no CORS still block other sites.
+
 ## 2026-11-15: Saved and Pipeline
 - **`founder_saved` + `founder_pipeline_events` (migration 0010)**, private per workspace. Stages: Shortlisted → Contacted → In discussion → Partnered. Saving is idempotent; a company can be saved once per founder.
 - **"I sent it" updates the pipeline:** it saves the company if needed, moves it from Shortlisted to Contacted (never backwards), and suggests a follow-up 7 days later only if none is set. Every change goes in the timeline.

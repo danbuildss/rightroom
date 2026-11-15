@@ -30,6 +30,8 @@ export interface Env {
 export interface Variables {
   /** The verified admin's email, set by the auth middleware. */
   adminEmail: string;
+  /** How the Worker fetches outside pages (replaced in tests). */
+  fetcher: typeof fetch;
 }
 
 export type AppEnv = { Bindings: Env; Variables: Variables };

@@ -10,6 +10,7 @@ import { REVIEW_STATUSES, reviewInputSchema, SIGNAL_TYPE_SLUGS } from "../../sha
 import { auditData } from "../db/audit.ts";
 import { addAlias, DuplicateCompanyError, getCompany, listCompanies, mergeCompanies } from "../db/companies.ts";
 import { ImportRejectedError, importRegistryFile, reviewQueue, updateCompany, updateSignal } from "../db/curation.ts";
+import { companyEvidence, signalEvidence } from "../db/evidence.ts";
 import { DuplicateSignalError, getSignal, listSignals, reviewCompany, reviewSignal } from "../db/signals.ts";
 import { ConflictError, NotFoundError } from "../db/util.ts";
 import type { AppEnv } from "../env.ts";
@@ -78,6 +79,21 @@ export const admin = new Hono<AppEnv>()
   })
 
   .get("/queue", async (c) => c.json({ items: await reviewQueue(c.env.DB) }))
+  // Read the source page and suggest what supports the record (for the review screens).
+  .post("/companies/:id/evidence", async (c) => {
+    try {
+      return c.json(await companyEvidence(c.env.DB, c.req.param("id"), c.get("fetcher")));
+    } catch (err) {
+      return fail(c, err);
+    }
+  })
+  .post("/signals/:id/evidence", async (c) => {
+    try {
+      return c.json(await signalEvidence(c.env.DB, c.req.param("id"), c.get("fetcher")));
+    } catch (err) {
+      return fail(c, err);
+    }
+  })
   .get("/audit", async (c) => c.json(await auditData(c.env.DB)))
 
   // Companies

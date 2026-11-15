@@ -13,6 +13,11 @@ const jwks = createLocalJWKSet({ keys: [{ ...(await exportJWK(publicKey)), kid: 
 /** The app wired to a local test key set instead of Cloudflare's. */
 export const app = createApp({ getKey: () => jwks });
 
+/** The same, with a fake web for pages the Worker fetches. */
+export function appWithFetcher(fetcher: typeof fetch) {
+  return createApp({ getKey: () => jwks, fetcher });
+}
+
 export async function token(
   claims: JWTPayload = {},
   opts: { key?: CryptoKey; exp?: string; iss?: string; aud?: string } = {},

@@ -5,18 +5,31 @@ import { jsonError, securityHeaders } from "./http.ts";
 import { type AuthOptions, requireAdmin } from "./middleware/auth.ts";
 import { admin } from "./routes/admin.ts";
 import { collector } from "./routes/collector.ts";
+import { publicApi } from "./routes/public.ts";
 import { workspaces } from "./routes/workspaces.ts";
 
-export function createApp(auth: AuthOptions = {}) {
+export interface AppOptions extends AuthOptions {
+  /** How outside pages are fetched (tests pass a fake). */
+  fetcher?: typeof fetch;
+}
+
+export function createApp(options: AppOptions = {}) {
   const app = new Hono<AppEnv>();
 
   app.use("*", securityHeaders);
+  app.use("*", async (c, next) => {
+    c.set("fetcher", options.fetcher ?? fetch);
+    await next();
+  });
 
   // Public: tells you the Worker is up. Returns no data.
   app.get("/api/health", (c) => c.json({ ok: true }));
 
+  // Public Discover API: read-only, verified records only, no login.
+  app.route("/api/public", publicApi);
+
   // Everything else under /api needs a verified admin.
-  app.use("/api/*", requireAdmin(auth));
+  app.use("/api/*", requireAdmin(options));
   app.use(
     "/api/*",
     bodyLimit({

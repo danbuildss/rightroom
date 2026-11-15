@@ -19,7 +19,7 @@ Explore:
 - Shows **all verified companies**, whatever their fit for this founder. Discover stays personal and never hides the wider database.
 - **Category tiles** come from each company's type: Startups & Products, Platforms & APIs, Ecosystems, Distribution, Communities & Media, Accelerators & Programs. A tile appears only when at least one company has that type.
 - **Filters:** sector, location, partner goal (from verified signals), stage. A filter appears only when companies have that data.
-- **Cards** answer "what could I do with this company?": initials (no third-party logos), sector and audience, description, partnership types from verified signals, and a possible partnership angle labelled as our suggestion.
+- **Cards** answer "what could I do with this company?": the company's own logo (or initials), its website, X, GitHub, partner page and docs when we have them, sector and audience, description, partnership types from verified signals, and a possible partnership angle labelled as our suggestion.
 
 Company profile (type, headquarters country, stage, audience) is **Rightroom's own label**, set or confirmed by Dan. Imported or pre-filled values are suggestions, hidden from founders until confirmed. Changing a profile never reopens review. People stay inside company profiles; there is no directory of individuals.
 

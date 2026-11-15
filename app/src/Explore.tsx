@@ -1,5 +1,6 @@
 import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { type ExploreCard, type ExploreParams, type ExploreResponse, explore, type OrgType, pipeline } from "./api.ts";
+import { CompanyLinks, CompanyMark } from "./CompanyBits.tsx";
 import { announceSavedChange, useToast } from "./motion.tsx";
 
 const GOAL_LABELS: Record<string, string> = {
@@ -437,9 +438,7 @@ export function XCard({ c, onOpen }: { c: ExploreCard; onOpen: () => void }) {
   return (
     <article className="xcard">
       <div className="xch">
-        <span className="ini" aria-hidden="true">
-          {initials(c.name)}
-        </span>
+        <CompanyMark name={c.name} logo={c.logo} />
         <div className="xmeta">
           <h3 className="xname">{c.name}</h3>
           <div className="xsub">{subline(c) || c.domain}</div>
@@ -447,6 +446,7 @@ export function XCard({ c, onOpen }: { c: ExploreCard; onOpen: () => void }) {
         <FitBadge fit={c.fit} />
       </div>
       {c.description ? <p className="xdesc">{c.description}</p> : null}
+      <CompanyLinks links={c.links} name={c.name} compact />
       <div className="xtags">
         {sig ? (
           <span className="xtag ver">
@@ -486,9 +486,7 @@ function XRow({ c, onOpen }: { c: ExploreCard; onOpen: () => void }) {
   const sig = c.latest_signal;
   return (
     <article className="xrow">
-      <span className="ini sm" aria-hidden="true">
-        {initials(c.name)}
-      </span>
+      <CompanyMark name={c.name} logo={c.logo} size="sm" />
       <div className="xrmain">
         <h3 className="xname">
           <button type="button" className="linkbtn xrname" onClick={onOpen}>

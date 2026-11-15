@@ -8,6 +8,8 @@ import { suggest } from "../../shared/intel.ts";
 import type { OrgType, Stage as ProfileStage, ProfileStatus } from "../../shared/profile.ts";
 import { effectiveSignalStatus, SIGNAL_TYPES, type SignalType } from "../../shared/signals.ts";
 import { listContacts } from "./contacts.ts";
+import { linksFor } from "./links.ts";
+import { logoVersions } from "./logos.ts";
 
 export interface DiscoverInput {
   q: string;
@@ -60,6 +62,10 @@ const host = (url: string) => {
     return url;
   }
 };
+
+/** Our own URL for a company's stored logo, versioned so a new logo isn't hidden by caches. */
+export const logoUrl = (slug: string, version: string | undefined) =>
+  version ? `/api/public/logos/${encodeURIComponent(slug)}?v=${encodeURIComponent(version.replace(/\D/g, ""))}` : null;
 
 export async function load(db: D1Database, workspaceId: string, input: DiscoverInput, only?: { slug: string }) {
   const profile = await db
@@ -132,6 +138,7 @@ export async function load(db: D1Database, workspaceId: string, input: DiscoverI
         confidence: "high" | "medium" | "low";
       }>();
 
+    const [links, logos] = await Promise.all([linksFor(db, companies), logoVersions(db)]);
     for (const co of companies) {
       const mine = contactRows.filter((k) => k.company_id === co.id);
       const contacts = {
@@ -162,7 +169,20 @@ export async function load(db: D1Database, workspaceId: string, input: DiscoverI
         signals,
         contacts,
       };
-      scored.push({ co, categories, signals, fit: scoreCompany(dc, { target, own, goals, terms: parsed.terms }) });
+      scored.push({
+        co,
+        categories,
+        signals,
+        fit: scoreCompany(dc, { target, own, goals, terms: parsed.terms }),
+        links: links.get(co.id) ?? {
+          website: `https://${co.domain}`,
+          x: null,
+          github: null,
+          partners: null,
+          docs: null,
+        },
+        logo: logoUrl(co.slug, logos.get(co.id)),
+      });
     }
   }
   const { results: savedRows } = await db
@@ -175,9 +195,11 @@ export async function load(db: D1Database, workspaceId: string, input: DiscoverI
 
 type Scored = Awaited<ReturnType<typeof load>>["scored"][number];
 
-function view({ co, categories, signals, fit }: Scored, saved?: { id: string; stage: string }) {
+function view({ co, categories, signals, fit, links, logo }: Scored, saved?: { id: string; stage: string }) {
   return {
     saved: saved ?? null,
+    links,
+    logo,
     slug: co.slug,
     name: co.name,
     domain: co.domain,

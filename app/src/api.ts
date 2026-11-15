@@ -1,3 +1,4 @@
+import type { Links } from "./CompanyBits.tsx";
 // Calls to Rightroom's founder API. The session lives in an HttpOnly cookie the browser sends itself.
 export interface Founder {
   id: string;
@@ -83,6 +84,8 @@ export interface DiscoverResult {
   slug: string;
   name: string;
   domain: string;
+  logo: string | null;
+  links: Links;
   description: string | null;
   categories: { slug: string; label: string; kind: string }[];
   fit: {
@@ -215,6 +218,8 @@ export interface ExploreCard {
   name: string;
   domain: string;
   description: string | null;
+  logo: string | null;
+  links: Links;
   sectors: { slug: string; label: string }[];
   profile: { type: OrgType | null; country: string | null; stage: string | null; audiences: string[] } | null;
   partnership_types: GoalKey[];
@@ -274,6 +279,7 @@ export interface HomeResponse {
   matches: {
     slug: string;
     name: string;
+    logo: string | null;
     fit: { label: "strong" | "potential"; overall: number };
     why: string;
     latest: { type_label: string; date: string } | null;
@@ -292,6 +298,7 @@ export interface HomeResponse {
   added: {
     slug: string;
     name: string;
+    logo: string | null;
     type: OrgType | null;
     sectors: string[];
     added_at: string;

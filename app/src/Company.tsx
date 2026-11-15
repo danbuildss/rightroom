@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { type CompanyIntel, companyIntel } from "./api.ts";
+import { CompanyLinks, CompanyMark } from "./CompanyBits.tsx";
 import { SaveButton } from "./Discover.tsx";
 import { DraftPanel } from "./DraftPanel.tsx";
 import { CountUp, FitMeter } from "./motion.tsx";
@@ -93,13 +94,17 @@ export function Company({
       {crumb}
       <header className="ihead">
         <div>
-          <h1>{c.name}</h1>
+          <div className="ititle">
+            <CompanyMark name={c.name} logo={c.logo} size="lg" />
+            <h1>{c.name}</h1>
+          </div>
           <div className="imeta">
             {sectors.join(" · ")}
             {sectors.length ? " · " : ""}
             <Ext url={`https://${c.domain}`} text={c.domain} />
             {c.last_verified_at ? ` · website verified ${day(c.last_verified_at)}` : ""}
           </div>
+          <CompanyLinks links={c.links} name={c.name} />
           {data.goals.length ? (
             <div className="itags">
               {data.goals.map((g) => (

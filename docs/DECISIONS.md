@@ -2,6 +2,18 @@
 
 Short records of technical decisions, newest first. Product decisions live in `PLAN.md`.
 
+## 2026-11-15: Grok test (3 USD budget)
+- **Manual only:**
+  - The hourly schedule skips Grok sources unless `GROK_AUTO` is "on".
+  - Every search starts from a button in Back office → Grok research, which shows a cautious estimate first. It assumes Grok reads three times as many posts as it returns, priced at the defaults in `shared/grok.ts`: 0.005 USD per post, and 1.25 / 2.50 USD per million input / output tokens (third-party listings, Nov 2026; to be confirmed against xAI's pricing page, which this session couldn't reach).
+- **No search starts if it could pass the cap** (spent plus estimate). For the test, the cap is `GROK_MONTHLY_CAP_USD = 2.5`, and the xAI console limit of 3 USD is the hard stop.
+- **Company research:** one search per company covering the last 30 days and up to 8 posts. Grok also names the official X account, but that becomes a suggestion only if its evidence post is among xAI's citations **and** was posted by that same account. Dan accepts or dismisses it; accepting replaces the company's X handle.
+- **Three focused test searches** (AI and dev tools, payments and stablecoins, Base and onchain), each covering the last 7 days and up to 8 posts. They're added by a button and never run on their own.
+- **Measuring value:**
+  - Dan rates Grok results in the Inbox (👍 / 👎, stored on `collected_items.useful`).
+  - The report shows searches run, cost, cited results, ratings, signals made, cost per useful result and cost per signal.
+- Migration 0014: `collected_items.useful` and `rated_at`, plus `x_handle_suggestions`.
+
 ## 2026-11-15: Company logos and links
 - **Logos are read once from the company's own site and served from ours:**
   - The server looks at the homepage's apple-touch-icon and icon links (on the company's own domain only), then `/apple-touch-icon.png` and `/favicon.ico`.

@@ -362,7 +362,7 @@ describe("Pilot A: Grok signal search", () => {
     const s = await grokSource();
     const now = new Date("2031-03-15T00:00:00Z");
     await env.DB.prepare(
-      "INSERT INTO spend_ledger (id, provider, posts, estimated_usd, created_at) VALUES (?, 'xai', 0, 49.99, ?)",
+      "INSERT INTO spend_ledger (id, provider, posts, estimated_usd, created_at) VALUES (?, 'xai', 0, 49.5, ?)",
     )
       .bind(`cap-test-${n}`, "2031-03-02T00:00:00.000Z")
       .run();
@@ -379,6 +379,28 @@ describe("Pilot A: Grok signal search", () => {
     expect(over).toMatchObject({ status: "not_modified", error: expect.stringMatching(/budget reached/) });
     expect(requests).toHaveLength(0);
     expect((await getWatchedSource(env.DB, s.id))?.next_run_at).toBe("2031-04-01T00:00:00.000Z");
+  });
+
+  it("doesn't start a search that could go past the cap", async () => {
+    const s = await grokSource();
+    const now = new Date("2032-05-15T00:00:00Z");
+    await env.DB.prepare(
+      "INSERT INTO spend_ledger (id, provider, posts, estimated_usd, created_at) VALUES (?, 'xai', 0, 2.45, ?)",
+    )
+      .bind(`near-cap-${n}`, "2032-05-02T00:00:00.000Z")
+      .run();
+    const { fetcher, requests } = fakeFetch();
+    const out = await runSource(env.DB, s.id, { fetcher, env: { XAI_API_KEY: "k", GROK_MONTHLY_CAP_USD: "2.5" }, now });
+    expect(out).toMatchObject({ status: "not_modified", error: expect.stringMatching(/could cost up to/) });
+    expect(requests).toHaveLength(0);
+  });
+
+  it("never runs on the hourly schedule unless GROK_AUTO is on", async () => {
+    const s = await grokSource();
+    const { fetcher, requests } = fakeFetch(reply([]));
+    const off = await runDueSources(env.DB, { fetcher, env: { XAI_API_KEY: "k" }, limit: 200 });
+    expect(off.map((o) => o.source_id)).not.toContain(s.id);
+    expect(requests.filter((r) => r.url.includes("api.x.ai"))).toHaveLength(0);
   });
 
   it("an error from xAI is a normal failure", async () => {

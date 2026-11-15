@@ -241,6 +241,7 @@ export const watchedSourceInputSchema = z.strictObject({
       allowed_x_handles: z.array(z.string()).max(10).optional(),
       lookback_days: z.number().int().optional(),
       max_posts: z.number().int().optional(),
+      company: z.object({ name: z.string(), domain: z.string() }).optional(),
     })
     .default({}),
   terms_note: z

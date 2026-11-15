@@ -27,6 +27,7 @@ import {
   buildGrokRequest,
   DEFAULT_GROK_PRICES,
   estimateGrokCost,
+  estimateSearchCost,
   type GrokPrices,
   grokConfigSchema,
   parseGrokResponse,
@@ -46,6 +47,8 @@ export interface CollectorEnv {
   GROK_PRICE_PER_POST_USD?: string;
   GROK_PRICE_INPUT_PER_M_USD?: string;
   GROK_PRICE_OUTPUT_PER_M_USD?: string;
+  /** Grok searches run on the hourly schedule only when this is "on". Otherwise only Dan's "Run" button starts them. */
+  GROK_AUTO?: string;
 }
 
 export const GROK_DEFAULT_MODEL = "grok-4.3";
@@ -303,7 +306,7 @@ function num(value: string | undefined, fallback: number): number {
   return value !== undefined && value !== "" && Number.isFinite(n) && n >= 0 ? n : fallback;
 }
 
-function grokPrices(env: CollectorEnv): GrokPrices {
+export function grokPrices(env: CollectorEnv): GrokPrices {
   return {
     per_post_usd: num(env.GROK_PRICE_PER_POST_USD, DEFAULT_GROK_PRICES.per_post_usd),
     input_per_million_usd: num(env.GROK_PRICE_INPUT_PER_M_USD, DEFAULT_GROK_PRICES.input_per_million_usd),
@@ -358,6 +361,12 @@ async function collectGrok(
     return { status: "skipped", reason, retryAt: nextMonth };
   }
   const config = grokConfigSchema.parse(source.config);
+  // Never start a search that could go past the cap.
+  const estimate = estimateSearchCost(config, grokPrices(env));
+  if (spent + estimate > cap) {
+    const reason = `Skipped: this search could cost up to ${estimate.toFixed(2)} USD and only ${(cap - spent).toFixed(2)} of ${cap} USD is left this month`;
+    return { status: "skipped", reason, retryAt: addHours(now, source.interval_hours) };
+  }
   let res: Response;
   try {
     res = await fetcher("https://api.x.ai/v1/responses", {
@@ -389,7 +398,15 @@ async function collectGrok(
     .bind(newId(), source.id, parsed.citations, parsed.input_tokens, parsed.output_tokens, cost, nowIso(now));
   return {
     status: "ok",
-    result: { items: parsed.items, state: { last_dropped: parsed.dropped } },
+    result: {
+      items: parsed.items,
+      state: {
+        last_dropped: parsed.dropped,
+        last_cost_usd: cost,
+        last_posts_read: parsed.citations,
+        handle: parsed.handle,
+      },
+    },
     etag: null,
     lastModified: null,
     spend,
@@ -590,7 +607,10 @@ export async function runDueSources(
 ): Promise<RunOutcome[]> {
   const now = options.now ?? new Date();
   const { results } = await db
-    .prepare("SELECT id FROM watched_sources WHERE enabled = 1 AND next_run_at <= ? ORDER BY next_run_at LIMIT ?")
+    .prepare(
+      `SELECT id FROM watched_sources WHERE enabled = 1 AND next_run_at <= ? ${options.env?.GROK_AUTO === "on" ? "" : "AND adapter != 'grok_x_search'"}
+       ORDER BY next_run_at LIMIT ?`,
+    )
     .bind(nowIso(now), options.limit ?? 5)
     .all<{ id: string }>();
   const outcomes: RunOutcome[] = [];
@@ -629,6 +649,9 @@ export interface InboxItem {
   status: "new" | "promoted" | "dismissed";
   signal_id: string | null;
   found_at: string;
+  /** Dan's rating during the Grok test: 1 useful, 0 not useful, null not rated. */
+  useful: number | null;
+  from_grok: number;
 }
 
 export async function listInbox(
@@ -639,7 +662,8 @@ export async function listInbox(
   const { results } = await db
     .prepare(
       `SELECT i.id, i.watched_source_id, w.name AS source_name, i.title, i.url, i.published_at, i.excerpt,
-         i.suggested_signal_type, i.suggested_domain, i.status, i.signal_id, i.found_at
+         i.suggested_signal_type, i.suggested_domain, i.status, i.signal_id, i.found_at, i.useful,
+         w.adapter = 'grok_x_search' AS from_grok
        FROM collected_items i JOIN watched_sources w ON w.id = i.watched_source_id
        WHERE i.status = ? ORDER BY COALESCE(i.published_at, substr(i.found_at, 1, 10)) DESC LIMIT ?`,
     )

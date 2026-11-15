@@ -95,6 +95,7 @@ describe("workspace isolation", () => {
       "categories",
       "company_categories",
       "company_logos",
+      "x_handle_suggestions",
       "sources",
       "signal_types",
       "signal_events",

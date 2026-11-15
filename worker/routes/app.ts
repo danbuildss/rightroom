@@ -11,9 +11,11 @@ import { bodyLimit } from "hono/body-limit";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import type { JWTVerifyGetKey } from "jose";
 import { z } from "zod";
+import { buildDraft, draftPatchSchema, draftSaveSchema, VARIANTS } from "../../shared/draft.ts";
 import { GOALS, profileUpdateSchema } from "../../shared/founder.ts";
 import { isInvited, submitAccessRequest, TooManyRequestsError } from "../db/access.ts";
 import { companyIntel, discover } from "../db/discover.ts";
+import { deleteDraft, listDrafts, saveDraft, updateDraft, verifiedCompanyId } from "../db/drafts.ts";
 import {
   createSession,
   deleteFounderWorkspace,
@@ -25,6 +27,7 @@ import {
   updateProfile,
   upsertFounder,
 } from "../db/founders.ts";
+import { NotFoundError } from "../db/util.ts";
 import type { AppEnv, Env } from "../env.ts";
 import { jsonError } from "../http.ts";
 import { PrivyTokenError, verifyIdentityToken } from "../privy.ts";
@@ -50,6 +53,12 @@ const discoverQuery = z.object({
     .pipe(z.array(z.enum(GOALS)))
     .optional(),
   category: z.string().max(60).optional(),
+});
+
+const draftQuery = z.object({
+  variant: z.enum(VARIANTS).default("first"),
+  to: z.union([z.literal("team"), z.coerce.number().int().min(0).max(20)]).optional(),
+  via: z.coerce.number().int().min(0).max(20).optional(),
 });
 
 const requestSchema = tokenSchema.extend({
@@ -182,6 +191,103 @@ export function founderApp(options: FounderAppOptions = {}) {
       .get("/companies/:slug", requireFounder, async (c) => {
         const intel = await companyIntel(c.env.DB, c.get("founder").workspace_id, c.req.param("slug"));
         return intel ? c.json(intel) : jsonError(c, 404, "not_found", "Company not found.");
+      })
+
+      // A fresh draft from the templates (not saved). Uses verified facts and the founder's answers only.
+      .get("/companies/:slug/draft", requireFounder, async (c) => {
+        const q = draftQuery.safeParse(c.req.query());
+        if (!q.success) return jsonError(c, 400, "invalid_request", "Invalid draft options.");
+        const ws = c.get("founder").workspace_id;
+        const intel = await companyIntel(c.env.DB, ws, c.req.param("slug"));
+        if (!intel) return jsonError(c, 404, "not_found", "Company not found.");
+        const me = await c.env.DB.prepare(
+          `SELECT f.name, f.role, p.company_name, p.one_liner, p.website FROM founders f
+           LEFT JOIN founder_profiles p ON p.workspace_id = f.workspace_id WHERE f.workspace_id = ?`,
+        )
+          .bind(ws)
+          .first<{
+            name: string | null;
+            role: string | null;
+            company_name: string | null;
+            one_liner: string | null;
+            website: string | null;
+          }>();
+        const person = q.data.to === "team" ? null : (intel.people[q.data.to ?? 0] ?? null);
+        const channel = q.data.via === undefined ? intel.channels[0] : intel.channels[q.data.via];
+        const signal = intel.company.signals.find((s) => s.status === "verified") ?? null;
+        const goal = (intel.goals[0] ?? "integrations") as (typeof GOALS)[number];
+        const draft = buildDraft({
+          variant: q.data.variant,
+          goal,
+          founder: me ?? { name: null, role: null, company_name: null, one_liner: null, website: null },
+          company: { name: intel.company.name },
+          recipientName: person?.name ?? null,
+          signal: signal ? { type: signal.type as never, event_date: signal.event_date } : null,
+        });
+        const sources = [
+          ...(signal
+            ? [
+                {
+                  kind: "verified",
+                  text: `${signal.type_label}${
+                    signal.event_date
+                      ? ` · ${new Date(`${signal.event_date}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })}`
+                      : ""
+                  }`,
+                  url: signal.sources.find((x) => x.role === "primary")?.url ?? null,
+                },
+              ]
+            : []),
+          ...(person ? [{ kind: "verified", text: `${person.name}, ${person.role}`, url: person.source_url }] : []),
+          ...(me?.one_liner ? [{ kind: "yours", text: `Your answers: “${me.one_liner}”`, url: null }] : []),
+        ];
+        return c.json({
+          ...draft,
+          variant: q.data.variant,
+          recipient: person
+            ? `${person.name} · ${person.role}`
+            : `${intel.company.name} team (${intel.suggestions.suggested_role})`,
+          channel: channel
+            ? { label: channel.label, url: channel.url }
+            : { label: "Website", url: `https://${intel.company.domain}` },
+          options: {
+            people: intel.people.map((p, i) => ({ index: i, label: `${p.name} · ${p.role}` })),
+            channels: intel.channels.map((ch, i) => ({ index: i, label: ch.label, url: ch.url })),
+          },
+          sources,
+        });
+      })
+
+      .get("/companies/:slug/drafts", requireFounder, async (c) => {
+        const id = await verifiedCompanyId(c.env.DB, c.req.param("slug"));
+        if (!id) return jsonError(c, 404, "not_found", "Company not found.");
+        return c.json({ drafts: await listDrafts(c.env.DB, c.get("founder").workspace_id, id) });
+      })
+      .post("/companies/:slug/drafts", requireFounder, async (c) => {
+        const id = await verifiedCompanyId(c.env.DB, c.req.param("slug"));
+        if (!id) return jsonError(c, 404, "not_found", "Company not found.");
+        const body = await readBody(c, draftSaveSchema);
+        if (body instanceof Response) return body;
+        return c.json({ draft: await saveDraft(c.env.DB, c.get("founder").workspace_id, id, body) }, 201);
+      })
+      .patch("/drafts/:id", requireFounder, async (c) => {
+        const body = await readBody(c, draftPatchSchema);
+        if (body instanceof Response) return body;
+        try {
+          return c.json({ draft: await updateDraft(c.env.DB, c.get("founder").workspace_id, c.req.param("id"), body) });
+        } catch (err) {
+          if (err instanceof NotFoundError) return jsonError(c, 404, "not_found", err.message);
+          throw err;
+        }
+      })
+      .delete("/drafts/:id", requireFounder, async (c) => {
+        try {
+          await deleteDraft(c.env.DB, c.get("founder").workspace_id, c.req.param("id"));
+          return c.json({ ok: true });
+        } catch (err) {
+          if (err instanceof NotFoundError) return jsonError(c, 404, "not_found", err.message);
+          throw err;
+        }
       })
 
       .put("/profile", requireFounder, async (c) => {

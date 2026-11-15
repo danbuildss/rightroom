@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { type CompanyIntel, companyIntel } from "./api.ts";
+import { DraftPanel } from "./DraftPanel.tsx";
 
 const LABELS = { strong: "Strong fit", potential: "Potential fit", needs_verification: "Needs verification" } as const;
 const EVIDENCE = { high: "High", medium: "Medium", low: "Low" } as const;
@@ -37,6 +38,7 @@ export function Company({ slug, onBack }: { slug: string; onBack: () => void }) 
   const [data, setData] = useState<CompanyIntel | null>(null);
   const [error, setError] = useState("");
   const [showReasons, setShowReasons] = useState(false);
+  const [drafting, setDrafting] = useState(false);
 
   useEffect(() => {
     setData(null);
@@ -238,12 +240,13 @@ export function Company({ slug, onBack }: { slug: string; onBack: () => void }) 
           <p>{s.approach}</p>
           <p className="src">Why: {s.approach_why}</p>
           <div className="btnrow">
-            <button type="button" className="btn btn-blue" disabled>
-              Draft introduction <span className="soon light">NEXT STEP</span>
+            <button type="button" className="btn btn-blue" onClick={() => setDrafting(true)}>
+              Draft introduction
             </button>
           </div>
         </section>
       </div>
+      {drafting ? <DraftPanel slug={slug} companyName={c.name} onClose={() => setDrafting(false)} /> : null}
     </div>
   );
 }

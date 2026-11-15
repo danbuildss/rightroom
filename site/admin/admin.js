@@ -12,6 +12,7 @@ const SECTIONS = [
   ["sources", "Sources"],
   ["companies", "Companies"],
   ["founders", "Founders"],
+  ["grok", "Grok research"],
   ["spend", "Spend"],
 ];
 
@@ -613,6 +614,7 @@ views.inbox = async (view) => {
           <div class="meta">${link(i.url)} · ${i.published_at ? `published ${day(i.published_at)}` : `found ${day(i.found_at)}`}</div>
         </div></div>
         ${i.excerpt ? `<div class="ib"><div class="quote plain">${esc(i.excerpt)}</div></div>` : ""}
+        ${i.from_grok ? `<div class="if rate"><span class="hint">Grok test: was this worth finding?</span><div class="acts" role="group" aria-label="Rate this Grok result"><button class="btn sm${i.useful === 1 ? " blue" : ""}" type="button" data-rate="1" aria-pressed="${i.useful === 1}">👍 Useful</button><button class="btn sm${i.useful === 0 ? " dark" : ""}" type="button" data-rate="0" aria-pressed="${i.useful === 0}">👎 Not useful</button></div></div>` : ""}
         <div class="if"><span class="hint">Nothing is published from here: a new signal goes to the review queue.</span><div class="acts"><button class="btn sm" type="button" data-dismiss>Dismiss</button><button class="btn sm dark" type="button" data-promote>Make a signal…</button></div></div>
       </article>`,
         )
@@ -626,7 +628,13 @@ views.inbox = async (view) => {
     const item = card && items.find((i) => i.id === card.dataset.id);
     if (!item) return;
     try {
-      if (t.closest("[data-dismiss]")) {
+      if (t.closest("[data-rate]")) {
+        const useful = t.closest("[data-rate]").dataset.rate === "1";
+        const next = item.useful === (useful ? 1 : 0) ? null : useful;
+        await api("POST", `/inbox/${encodeURIComponent(item.id)}/rate`, { useful: next });
+        item.useful = next === null ? null : next ? 1 : 0;
+        render(items);
+      } else if (t.closest("[data-dismiss]")) {
         await api("POST", `/inbox/${encodeURIComponent(item.id)}/dismiss`);
         toast("Dismissed.");
         items.splice(items.indexOf(item), 1);
@@ -1047,6 +1055,144 @@ views.founders = async (view) => {
 };
 
 // ---------- Spend ----------
+// ---------- Grok research (the 3 USD test) ----------
+const usd = (n, d = 2) => (n === null || n === undefined ? "—" : `$${Number(n).toFixed(d)}`);
+views.grok = async (view) => {
+  const render = async () => {
+    const [g, { suggestions }, { companies }] = await Promise.all([
+      api("GET", "/grok"),
+      api("GET", "/grok/handles"),
+      api("GET", "/companies?status=verified&limit=200"),
+    ]);
+    const pct = g.budget.cap ? Math.min(100, (g.budget.spent / g.budget.cap) * 100) : 0;
+    const topics = g.searches.filter((x) => x.kind === "topic");
+    const research = g.searches.filter((x) => x.kind === "company");
+    const testTopics = topics.filter((x) => x.name.startsWith("Grok test:"));
+    const otherTopics = topics.filter((x) => !x.name.startsWith("Grok test:"));
+    const canRun = g.key_set;
+    const runBtn = (x) =>
+      `<button class="btn sm dark" type="button" data-run="${esc(x.id)}" data-est="${x.estimate_usd ?? 0}" ${canRun ? "" : "disabled"}>Run (up to ${usd(x.estimate_usd)})</button>`;
+    const row = (x) => `<tr>
+        <td><b>${esc(x.name.replace(/^Grok (test|research): /, ""))}</b><br><span class="meta">${esc(x.query)}${x.lookback_days ? ` · last ${x.lookback_days} days · up to ${x.max_posts} posts` : ""}</span>${x.last_error ? `<br><span class="meta warn-t">${esc(x.last_error)}</span>` : ""}</td>
+        <td class="hide-m">${x.runs}<br><span class="meta">${x.last_run_at ? day(x.last_run_at) : "never"}</span></td>
+        <td>${usd(x.cost_usd)}<br><span class="meta">${x.last_cost_usd !== null ? `last ${usd(x.last_cost_usd, 3)} · ${x.last_posts_read ?? 0} posts read` : ""}</span></td>
+        <td>${x.items}<br><span class="meta">👍 ${x.useful} · 👎 ${x.not_useful}</span></td>
+        <td>${runBtn(x)}</td>
+      </tr>`;
+    const table = (rows, empty) =>
+      rows.length
+        ? `<table><tr><th>Search</th><th class="hide-m">Runs</th><th>Spent</th><th>Results</th><th><span class="sr">Actions</span></th></tr>${rows.map(row).join("")}</table>`
+        : `<div class="pad meta">${empty}</div>`;
+    const t = g.totals;
+    view.innerHTML = `${header("Grok research", "A small, controlled test of Grok's X search. Every search starts from a button here, shows its cost first, and stops before the budget. Grok never verifies anything: results go to your Inbox.")}
+      <div class="panel"><h2>Budget <span>Rightroom's estimate · the xAI console limit is the hard stop</span></h2><div class="pad">
+        <div class="spend-n">${usd(g.budget.spent)} <span>spent of ${usd(g.budget.cap)} this month · ${usd(g.budget.left)} left</span></div>
+        <div class="meter"><i data-width="${pct.toFixed(1)}"></i></div>
+        <p class="meta">${g.key_set ? `Key set · model ${esc(g.model)} · ${g.auto ? "<b>also runs on the hourly schedule</b> (GROK_AUTO is on)" : "manual only: nothing runs on its own"}` : "<b>Off:</b> no xAI key yet, so nothing can run and nothing is spent. Add <code>XAI_API_KEY</code> as a secret and <code>GROK_MONTHLY_CAP_USD = 2.5</code> as a variable in the Cloudflare dashboard (Workers → rightroom → Settings)."}</p>
+        <p class="meta">Estimates are cautious (they assume Grok reads three times as many posts as it returns). The real cost of each run is shown after it finishes.</p>
+      </div></div>
+
+      <div class="panel"><h2>Research a company <span>Its official X account and its partnership posts from the last 30 days</span></h2><div class="pad">
+        <form class="toolbar flat" id="grok-co">
+          <label class="sr" for="grok-co-pick">Company</label>
+          <select id="grok-co-pick" name="company" required><option value="">Choose a verified company…</option>${companies.map((c) => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("")}</select>
+          <button class="btn sm dark" type="submit" ${canRun ? "" : "disabled"}>Research (up to ${usd(g.company_estimate_usd)})</button>
+        </form>
+        <p class="help">Posts land in your Inbox to rate and turn into signals. A suggested X handle appears below; it only becomes the company's X link when you accept it.</p>
+        <div id="grok-co-result"></div>
+      </div>${research.length ? table(research, "") : ""}</div>
+
+      <div class="panel"><h2>X handles to confirm <span>From company research, backed by a post from that account</span></h2>
+        ${
+          suggestions.length
+            ? `<table><tr><th>Company</th><th>Suggested</th><th class="hide-m">Evidence</th><th><span class="sr">Actions</span></th></tr>${suggestions
+                .map(
+                  (h) => `<tr data-hid="${esc(h.id)}"><td><b>${esc(h.name)}</b><br><span class="meta">${esc(h.domain)}${h.current ? ` · now @${esc(h.current)}` : ""}</span></td>
+                <td>${link(`https://x.com/${h.handle}`, `@${h.handle}`)}</td><td class="hide-m">${link(h.evidence_url, "the post")}</td>
+                <td><div class="row-actions"><button class="btn sm blue" type="button" data-haccept>✓ Use it</button><button class="btn sm" type="button" data-hdismiss>Dismiss</button></div></td></tr>`,
+                )
+                .join("")}</table>`
+            : `<div class="pad meta">None yet. Check that the account really is the company's own before you accept it.</div>`
+        }
+      </div>
+
+      <div class="panel"><h2>Test searches <span>3 focused searches, last 7 days, up to 8 posts each</span></h2>
+        ${testTopics.length ? table(testTopics, "") : `<div class="pad"><p class="meta">Not added yet.</p><button class="btn sm dark" type="button" data-setup>Add the 3 test searches</button></div>`}
+      </div>
+      ${otherTopics.length ? `<div class="panel"><h2>Other Grok searches <span>From the earlier pilot; also manual only</span></h2>${table(otherTopics, "")}</div>` : ""}
+
+      <div class="panel"><h2>Report <span>Is it worth more credit?</span></h2><div class="pad">
+        <div class="stats">
+          <div class="stat"><div class="n">${t.runs}</div><div class="l">Searches run</div></div>
+          <div class="stat"><div class="n">${usd(t.cost_usd)}</div><div class="l">Spent</div></div>
+          <div class="stat"><div class="n">${t.items}</div><div class="l">Results (cited posts)</div></div>
+          <div class="stat"><div class="n">${t.useful} / ${t.useful + t.not_useful}</div><div class="l">Rated useful</div></div>
+          <div class="stat"><div class="n">${t.promoted}</div><div class="l">Turned into signals</div></div>
+          <div class="stat"><div class="n">${usd(t.cost_per_useful_usd, 3)}</div><div class="l">Cost per useful result</div></div>
+          <div class="stat"><div class="n">${usd(t.cost_per_signal_usd, 3)}</div><div class="l">Cost per signal</div></div>
+        </div>
+        <p class="meta">Rate results in the Inbox (👍 / 👎). Signals still need your normal review before founders see them.</p>
+      </div></div>`;
+    fillMeters(view);
+  };
+  await render();
+
+  const confirmRun = (est) =>
+    window.confirm(`This search could cost up to $${Number(est).toFixed(2)} (usually less). It counts against your Grok budget. Run it?`);
+  view.onclick = async (e) => {
+    const t = e.target;
+    try {
+      if (t.closest("[data-setup]")) {
+        const { added } = await api("POST", "/grok/test-searches");
+        toast(`${added} test searches added. Nothing has run yet.`);
+        await render();
+      } else if (t.closest("[data-run]")) {
+        const b = t.closest("[data-run]");
+        if (!confirmRun(b.dataset.est)) return;
+        b.disabled = true;
+        b.textContent = "Searching… (up to a minute)";
+        const { outcome } = await api("POST", `/watched-sources/${encodeURIComponent(b.dataset.run)}/run`);
+        toast(outcome.status === "ok" ? `${outcome.items_new} new results in your Inbox.` : outcome.error || "Didn't run.", { bad: outcome.status === "failed" });
+        await render();
+      } else if (t.closest("[data-haccept]") || t.closest("[data-hdismiss]")) {
+        const id = t.closest("[data-hid]").dataset.hid;
+        const accept = Boolean(t.closest("[data-haccept]"));
+        await api("POST", `/grok/handles/${encodeURIComponent(id)}`, { accept });
+        toast(accept ? "X handle saved. Founders see it now." : "Dismissed.");
+        await render();
+      }
+    } catch (err) {
+      if (err.status !== 401) toast(err.message, { bad: true });
+      await render();
+    }
+  };
+  view.onsubmit = async (e) => {
+    if (e.target.id !== "grok-co") return;
+    e.preventDefault();
+    const id = e.target.company.value;
+    if (!id) return;
+    const g = await api("GET", "/grok");
+    if (!confirmRun(g.company_estimate_usd)) return;
+    const box = $("#grok-co-result", view);
+    const btn = e.target.querySelector("button");
+    btn.disabled = true;
+    box.innerHTML = `<span class="reading">Searching X… (up to a minute)</span>`;
+    try {
+      const r = await api("POST", `/grok/research/${encodeURIComponent(id)}`);
+      const o = r.outcome;
+      box.innerHTML =
+        o.status === "ok"
+          ? `<div class="notice ok">Done · cost ${usd(r.cost_usd, 3)} · ${o.items_new} new posts in your Inbox · ${r.handle ? (r.handle.already_set ? `X account @${esc(r.handle.handle)} matches what we have` : `suggested X account: @${esc(r.handle.handle)} (confirm below)`) : "no official X account found with evidence"}</div>`
+          : `<div class="notice warn">${esc(o.error || "Didn't run.")}</div>`;
+      setTimeout(render, 2500);
+    } catch (err) {
+      box.innerHTML = `<div class="notice warn">${esc(err.message)}</div>`;
+    } finally {
+      btn.disabled = false;
+    }
+  };
+};
+
 views.spend = async (view) => {
   const sp = await api("GET", "/spend");
   view.innerHTML = `${header("Spend", "Paid data sources and their monthly cap")}

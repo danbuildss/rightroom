@@ -23,6 +23,10 @@ export const grokConfigSchema = z.strictObject({
   lookback_days: z.number().int().min(1).max(30).default(2),
   /** At most this many posts per search. */
   max_posts: z.number().int().min(1).max(15).default(10),
+  /** Company research: find this company's official X account and its recent partnership posts. */
+  company: z
+    .strictObject({ name: z.string().trim().min(1).max(200), domain: z.string().trim().min(3).max(253) })
+    .optional(),
 });
 export type GrokConfig = z.infer<typeof grokConfigSchema>;
 
@@ -48,10 +52,31 @@ Reply with JSON only, no prose:
 {"items":[{"post_url":"https://x.com/<handle>/status/<id>","author_handle":"<handle>","posted_at":"YYYY-MM-DD",
 "post_text":"<exact text, max 400 chars>","company_name":"<name or null>","company_website":"<https URL or null>"}]}`;
 
+const COMPANY_INSTRUCTIONS = `You research one company for a curated partnership database. Use X search only.
+1) Find the company's official X account: the account that speaks for the company itself (not a founder, fan,
+   reseller or parody). Give one of its own posts as evidence, from the search results.
+2) List its own recent posts that could create a partnership: a partner or integration program, a request for
+   partners or collaborators, a new integration, a new API or SDK, a launch on a new chain or platform,
+   an ecosystem or grants program, or a partnerships role.
+Ignore funding news, price talk, giveaways and memes. Never invent posts, links or handles. If unsure, use null.
+Reply with JSON only, no prose:
+{"official_handle":{"handle":"<handle without @>","evidence_post_url":"https://x.com/<handle>/status/<id>"} or null,
+"items":[{"post_url":"https://x.com/<handle>/status/<id>","author_handle":"<handle>","posted_at":"YYYY-MM-DD",
+"post_text":"<exact text, max 400 chars>","company_name":"<name or null>","company_website":"<https URL or null>"}]}`;
+
 export function buildGrokRequest(config: GrokConfig, model: string, now: Date) {
   const from = new Date(now.getTime() - config.lookback_days * 86_400_000).toISOString().slice(0, 10);
   const tool: Record<string, unknown> = { type: "x_search", from_date: from };
   if (config.allowed_x_handles?.length) tool.allowed_x_handles = config.allowed_x_handles;
+  if (config.company) {
+    return {
+      model,
+      instructions: COMPANY_INSTRUCTIONS,
+      input: `Company: ${config.company.name} (website ${config.company.domain}). ${config.query}. Return at most ${config.max_posts} posts from ${from} onwards.`,
+      tools: [tool],
+      store: false,
+    };
+  }
   return {
     model,
     instructions: INSTRUCTIONS,
@@ -83,6 +108,8 @@ export interface GrokParseResult {
   items: CollectedItem[];
   /** Posts Grok listed but that weren't among its citations: dropped. */
   dropped: number;
+  /** Company research: the official account, only when a cited post from that same account backs it. */
+  handle: { handle: string; evidence_url: string } | null;
   citations: number;
   input_tokens: number;
   output_tokens: number;
@@ -126,7 +153,9 @@ export function parseGrokResponse(json: unknown): GrokParseResult {
   const answer = texts.join("\n");
   const jsonText = answer.match(/\{[\s\S]*\}/)?.[0];
   if (!jsonText) throw new Error("no JSON answer in the reply");
-  const parsed = z.object({ items: z.array(z.unknown()) }).parse(JSON.parse(jsonText));
+  const parsed = z
+    .object({ items: z.array(z.unknown()), official_handle: z.unknown().optional() })
+    .parse(JSON.parse(jsonText));
 
   // Every X post link anywhere in the reply outside the answer text counts as a citation.
   const strings: string[] = [];
@@ -165,9 +194,19 @@ export function parseGrokResponse(json: unknown): GrokParseResult {
       domain: website,
     });
   }
+  let handle: GrokParseResult["handle"] = null;
+  const oh = z.object({ handle: z.string(), evidence_post_url: z.string() }).safeParse(parsed.official_handle ?? null);
+  if (oh.success) {
+    const h = oh.data.handle.replace(/^@/, "").toLowerCase();
+    const ev = canonicalPostUrl(oh.data.evidence_post_url);
+    if (/^[a-z0-9_]{1,15}$/.test(h) && ev && cited.has(ev) && ev.split("/")[3] === h) {
+      handle = { handle: h, evidence_url: ev };
+    }
+  }
   return {
     items,
     dropped,
+    handle,
     citations: cited.size,
     input_tokens: body.usage?.input_tokens ?? 0,
     output_tokens: body.usage?.output_tokens ?? 0,
@@ -187,4 +226,16 @@ export function estimateGrokCost(
     (r.input_tokens / 1_000_000) * p.input_per_million_usd +
     (r.output_tokens / 1_000_000) * p.output_per_million_usd;
   return Math.round(cost * 10_000) / 10_000;
+}
+
+/**
+ * A cautious estimate before a search runs, shown in the back office. x_search may read more posts
+ * than it returns, so it assumes three times max_posts were read, plus generous token counts.
+ */
+export function estimateSearchCost(config: Pick<GrokConfig, "max_posts">, p: GrokPrices): number {
+  const read = config.max_posts * 3;
+  return estimateGrokCost(
+    { citations: read, input_tokens: 6_000 + read * 600, output_tokens: 1_500 + config.max_posts * 350 },
+    p,
+  );
 }

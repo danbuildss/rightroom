@@ -17,6 +17,14 @@ import {
   runSource,
   updateWatchedSource,
 } from "../db/collector.ts";
+import {
+  decideHandle,
+  grokStatus,
+  listHandleSuggestions,
+  rateItem,
+  researchCompany,
+  setupTestSearches,
+} from "../db/grok.ts";
 import { grokSpend } from "../db/overview.ts";
 import { createSignal, DuplicateSignalError } from "../db/signals.ts";
 import { ConflictError, NotFoundError } from "../db/util.ts";
@@ -74,13 +82,48 @@ export const collector = new Hono<AppEnv>()
   // Check one source now, outside the schedule.
   .post("/watched-sources/:id/run", async (c) => {
     try {
-      return c.json({ outcome: await runSource(c.env.DB, c.req.param("id"), { env: c.env }) });
+      return c.json({
+        outcome: await runSource(c.env.DB, c.req.param("id"), { env: c.env, fetcher: c.get("fetcher") }),
+      });
     } catch (err) {
       return fail(c, err);
     }
   })
   // Pilot A spending this month (Talo's estimate; the xAI console limit is the hard stop).
   .get("/spend", async (c) => c.json(grokSpend(c.env, await grokSpendThisMonth(c.env.DB))))
+  // The Grok test: budget, searches with estimates, results and the report.
+  .get("/grok", async (c) => c.json(await grokStatus(c.env.DB, c.env)))
+  .post("/grok/test-searches", async (c) => c.json({ added: await setupTestSearches(c.env.DB, c.get("adminEmail")) }))
+  .post("/grok/research/:companyId", async (c) => {
+    try {
+      return c.json(
+        await researchCompany(c.env.DB, c.req.param("companyId"), c.env, c.get("adminEmail"), c.get("fetcher")),
+      );
+    } catch (err) {
+      return fail(c, err);
+    }
+  })
+  .get("/grok/handles", async (c) => c.json({ suggestions: await listHandleSuggestions(c.env.DB) }))
+  .post("/grok/handles/:id", async (c) => {
+    const parsed = z.strictObject({ accept: z.boolean() }).safeParse(await readJson(c));
+    if (!parsed.success) return invalid(c, parsed.error);
+    try {
+      await decideHandle(c.env.DB, c.req.param("id"), parsed.data.accept, c.get("adminEmail"));
+      return c.json({ ok: true });
+    } catch (err) {
+      return fail(c, err);
+    }
+  })
+  .post("/inbox/:id/rate", async (c) => {
+    const parsed = z.strictObject({ useful: z.boolean().nullable() }).safeParse(await readJson(c));
+    if (!parsed.success) return invalid(c, parsed.error);
+    try {
+      await rateItem(c.env.DB, c.req.param("id"), parsed.data.useful);
+      return c.json({ ok: true });
+    } catch (err) {
+      return fail(c, err);
+    }
+  })
   .get("/runs", async (c) => c.json({ runs: await listRuns(c.env.DB, c.req.query("source_id")) }))
 
   .get("/inbox", async (c) => {

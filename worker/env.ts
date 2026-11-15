@@ -20,6 +20,8 @@ export interface Env {
   /** Optional overrides: model name, monthly cap in USD (default 50), and prices used for Talo's estimate. */
   GROK_MODEL?: string;
   GROK_MONTHLY_CAP_USD?: string;
+  /** "on" lets Grok searches run on the hourly schedule; otherwise only from the back office. */
+  GROK_AUTO?: string;
   GROK_PRICE_PER_POST_USD?: string;
   GROK_PRICE_INPUT_PER_M_USD?: string;
   GROK_PRICE_OUTPUT_PER_M_USD?: string;

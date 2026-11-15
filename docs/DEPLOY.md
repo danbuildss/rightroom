@@ -52,6 +52,8 @@ Approved by Dan on 2026-11-14 with a **50 USD monthly cap**. Without a key, the 
 4. Optional settings (plain variables): `GROK_MONTHLY_CAP_USD` (default 50), `GROK_MODEL` (default `grok-4.3`).
 5. `npm run sources:seed` adds the 7 Grok searches with the other sources.
 
+**The 3 USD test (Nov 2026):** set the console limit to 3 USD and add the plain variable `GROK_MONTHLY_CAP_USD = 2.5`. Leave `GROK_AUTO` unset, so Grok never runs on the hourly schedule; every search starts from Back office → Grok research, which shows its cost estimate first. Set `GROK_AUTO = on` only if Dan later approves scheduled searches.
+
 Talo also stops itself: it estimates each search's cost, records it, and skips Grok searches for the rest of the month once the cap is reached. Check `/api/admin/spend`. Results go to the inbox only; every post is checked by a person before it becomes a signal.
 
 ## Curating data in production

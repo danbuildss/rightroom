@@ -2,6 +2,13 @@
 
 Short records of technical decisions, newest first. Product decisions live in `PLAN.md`.
 
+## 2026-11-15: Quality fixes (audit batch 3: F2, F3, F5, F8)
+- **Accessibility:** admin Requests tabs are a pressed-button group (not a half-built tablist); action columns have hidden header text; the admin sign-in is a `main` landmark; side panels are `div role="dialog"`; heading levels no longer skip (Discover card names are `h2`, detail headings `h3`). The browser scan now passes on all 24 screens.
+- **Automated scan in the tests (`tests/a11y.test.ts`):** axe runs in jsdom over the static pages and server-rendered app screens (a Discover card with details open, the sign-in screen). Colour contrast needs real layout, so it stays in the browser audit. A self-check makes sure the scanner really flags problems.
+- **Focus trap (`useFocusTrap`):** panels take focus on open, keep Tab and Shift+Tab inside, and return focus to the opener on close.
+- **Short sector names:** `categories.short_label` (migration 0011) for founder-facing chips, cards and the pipeline; full names stay in the back office and as chip tooltips. The public API is unchanged.
+- **Deleting an account also deletes the founder's access request** (matched by email or X handle); the privacy policy says so.
+
 ## 2026-11-15: Faster founder app (audit B4)
 - **Privy loads only for sign-in.** The workspace (`App.tsx`, Discover, Company, Pipeline, drafts) has no Privy import; `Auth.tsx` (PrivyProvider and the sign-in screens) is loaded with `React.lazy` only when there's no Rightroom session. Signed-in founders load about 259 KB of JavaScript instead of 1.9 MB. A test keeps Privy out of the workspace files.
 - **The sign-in screen appears instantly** as a placeholder with disabled buttons, and becomes live when Privy has loaded.

@@ -40,7 +40,7 @@ type Stage =
     };
 
 /** The sign-in screen as it looks, shown instantly while the sign-in code loads. */
-function SignInPlaceholder() {
+export function SignInPlaceholder() {
   return (
     <Screen>
       <h1>Sign in to Rightroom</h1>

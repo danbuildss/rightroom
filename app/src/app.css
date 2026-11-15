@@ -758,7 +758,7 @@ textarea:focus {
   grid-template-columns: 1.1fr 1fr;
   gap: 22px;
 }
-.ddetail h4 {
+.ddetail h3 {
   font:
     600 11.5px "Geist Mono",
     monospace;
@@ -1296,7 +1296,7 @@ textarea.msg {
   background: #fcfbfa;
   font-size: 13.5px;
 }
-.used h4 {
+.used h3 {
   font:
     600 11.5px "Geist Mono",
     monospace;
@@ -1637,4 +1637,10 @@ fieldset.seg {
   max-width: 100%;
   min-width: 0;
   flex: 0 1 auto;
+}
+
+h2.dname {
+  margin: 0;
+  letter-spacing: normal;
+  line-height: 1.35;
 }

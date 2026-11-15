@@ -161,6 +161,23 @@ describe("onboarding, sign-out and delete", () => {
       .first<{ n: number }>();
     expect(left?.n).toBe(0);
   });
+
+  it("also deletes the founder's original access request", async () => {
+    n += 1;
+    const email = `leaving${n}@test.example`;
+    await invite({ email });
+    const res = await signIn(await idToken([{ type: "email", address: email }]));
+    const cookie = cookieOf(res);
+    const before = await env.DB.prepare("SELECT COUNT(*) AS n FROM access_requests WHERE email = ?")
+      .bind(email)
+      .first<{ n: number }>();
+    expect(before?.n).toBe(1);
+    expect((await req("/account", { method: "DELETE", cookie })).status).toBe(200);
+    const after = await env.DB.prepare("SELECT COUNT(*) AS n FROM access_requests WHERE email = ?")
+      .bind(email)
+      .first<{ n: number }>();
+    expect(after?.n).toBe(0);
+  });
 });
 
 describe("request access after signing in", () => {

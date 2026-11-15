@@ -64,8 +64,10 @@ async function load(db: D1Database, workspaceId: string, input: DiscoverInput, o
   const profileGoals = profile ? (JSON.parse(profile.goals_json) as Goal[]) : [];
 
   const { results: categoryRows } = await db
-    .prepare("SELECT slug, label, kind FROM categories ORDER BY kind, label")
-    .all<{ slug: string; label: string; kind: string }>();
+    .prepare(
+      "SELECT slug, COALESCE(short_label, label) AS label, label AS full_label, kind FROM categories ORDER BY kind, label",
+    )
+    .all<{ slug: string; label: string; full_label: string; kind: string }>();
   const known = new Set(categoryRows.map((c) => c.slug));
   const target = (input.categories ?? parsed.categories).filter((s) => known.has(s));
   const goals = input.goals ?? (parsed.goals.length ? parsed.goals : profileGoals);
@@ -84,7 +86,7 @@ async function load(db: D1Database, workspaceId: string, input: DiscoverInput, o
   if (companies.length) {
     const { results: cats } = await db
       .prepare(
-        `SELECT cc.company_id, c.slug, c.label, c.kind FROM company_categories cc JOIN categories c ON c.id = cc.category_id
+        `SELECT cc.company_id, c.slug, COALESCE(c.short_label, c.label) AS label, c.kind FROM company_categories cc JOIN categories c ON c.id = cc.category_id
          JOIN companies co ON co.id = cc.company_id WHERE co.status = 'verified' AND co.is_sample = 0 ${filter}`,
       )
       .bind(...bind)

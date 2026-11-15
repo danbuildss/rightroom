@@ -146,6 +146,7 @@ export function Discover({ suggestion, onOpen }: { suggestion: string; onOpen: (
             key={s.slug}
             type="button"
             className="dchip"
+            title={s.full_label}
             aria-pressed={category === s.slug}
             onClick={() => pickCategory(s.slug)}
           >
@@ -200,7 +201,7 @@ export function Discover({ suggestion, onOpen }: { suggestion: string; onOpen: (
   );
 }
 
-function ResultCard({
+export function ResultCard({
   r,
   open,
   onToggle,
@@ -216,10 +217,10 @@ function ResultCard({
   return (
     <article className="dcard">
       <div className="dch">
-        <div className="dname">
+        <h2 className="dname">
           {r.name}
           {sectors.length ? <span className="dsector">{sectors.join(" · ")}</span> : null}
-        </div>
+        </h2>
         <div className="dbadges">
           <span className={`fit ${r.fit.label}`}>{LABELS[r.fit.label]}</span>
           {r.fit.overall !== null ? (
@@ -261,7 +262,7 @@ function ResultCard({
       {open ? (
         <div className="ddetail">
           <div>
-            <h4>Why it fits · Rightroom's estimate</h4>
+            <h3>Why it fits · Rightroom's estimate</h3>
             {r.fit.factors.map((f) => (
               <div className="factor" key={f.factor}>
                 <span>{f.label}</span>
@@ -277,7 +278,7 @@ function ResultCard({
             </p>
           </div>
           <div>
-            <h4>Verified signals</h4>
+            <h3>Verified signals</h3>
             {r.signals.length === 0 ? <p className="dmeta">None yet. This company's website was verified.</p> : null}
             {r.signals.map((s) => (
               <div className="sig" key={`${s.type}-${s.title}`}>

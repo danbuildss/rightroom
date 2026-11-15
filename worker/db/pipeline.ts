@@ -150,7 +150,7 @@ export async function listPipeline(db: D1Database, ws: string) {
     .prepare(
       `SELECT s.id, s.stage, s.follow_up_at, s.notes, s.created_at, s.updated_at,
          c.slug, c.name, c.primary_domain AS domain, c.status AS company_status,
-         (SELECT GROUP_CONCAT(cat.label, ' · ') FROM company_categories cc JOIN categories cat ON cat.id = cc.category_id
+         (SELECT GROUP_CONCAT(COALESCE(cat.short_label, cat.label), ' · ') FROM company_categories cc JOIN categories cat ON cat.id = cc.category_id
             WHERE cc.company_id = c.id AND cat.kind = 'sector') AS sectors,
          (SELECT MAX(sent_at) FROM founder_drafts d WHERE d.workspace_id = s.workspace_id AND d.company_id = c.id) AS last_sent_at,
          (SELECT channel_label FROM founder_drafts d WHERE d.workspace_id = s.workspace_id AND d.company_id = c.id AND d.status = 'sent'

@@ -257,7 +257,7 @@ function fillMeters(root) {
 function requestTable(rows, emptyText) {
   if (!rows.length) return `<div class="pad meta">${esc(emptyText)}</div>`;
   const pill = { new: "blue", invited: "ok", declined: "grey" };
-  return `<table><tr><th>Founder</th><th class="hide-m">Looking for</th><th>Status</th><th></th></tr>
+  return `<table><tr><th>Founder</th><th class="hide-m">Looking for</th><th>Status</th><th><span class="sr">Actions</span></th></tr>
     ${rows
       .map(
         (r) => `<tr data-id="${esc(r.id)}">
@@ -300,7 +300,7 @@ views.requests = async (view) => {
         <p class="help">They can then sign in at /app with that Google or email account, or that X account. Tell them yourself.</p>
         <button class="btn sm dark" type="submit">Add to the invited list</button>
       </form>
-      <div class="tabs" role="tablist">${["new", "invited", "declined"].map((s) => `<button class="tab${s === st ? " on" : ""}" type="button" data-tab="${s}">${s[0].toUpperCase() + s.slice(1)}</button>`).join("")}</div>
+      <div class="tabs" role="group" aria-label="Show requests">${["new", "invited", "declined"].map((s) => `<button class="tab${s === st ? " on" : ""}" type="button" aria-pressed="${s === st}" data-tab="${s}">${s[0].toUpperCase() + s.slice(1)}</button>`).join("")}</div>
       <div class="panel mt">${requestTable(requests, `No ${st} requests.`)}</div>`;
   };
   await render(status);
@@ -677,7 +677,7 @@ views.sources = async (view) => {
   const render = () => {
     view.innerHTML = `${header("Sources", `${sources.filter((s) => s.enabled).length} of ${sources.length} on · checked on their own schedule by the hourly collector`)}
       <div class="panel"><table>
-        <tr><th>Source</th><th class="hide-m">Last success</th><th>Status</th><th></th></tr>
+        <tr><th>Source</th><th class="hide-m">Last success</th><th>Status</th><th><span class="sr">Actions</span></th></tr>
         ${sources
           .map((s) => {
             const status = !s.enabled

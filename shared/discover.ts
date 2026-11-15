@@ -206,6 +206,8 @@ export interface CompanyFit {
   evidence: Evidence;
   factors: FactorResult[];
   why: string;
+  /** Shares at least one sector, technology or keyword with the founder. Without it, no fit label. */
+  overlap: boolean;
 }
 
 const clamp = (n: number) => Math.max(0, Math.min(5, n));
@@ -328,8 +330,12 @@ export function scoreCompany(c: DiscoverCompany, ctx: DiscoverContext, now = new
         ? "high"
         : "medium";
 
-  const label: FitLabel =
-    evidence === "low"
+  // No overlap, no fit: readiness and contact describe the company, not the match, so a company that
+  // shares nothing with the founder can't be called a fit however open it is to partners.
+  const overlap = targetHits.length > 0 || ownHits.length > 0 || termHits.length > 0 || shared.length > 0;
+  const label: FitLabel = !overlap
+    ? "below"
+    : evidence === "low"
       ? alignment >= 3
         ? "needs_verification"
         : "below"
@@ -343,7 +349,7 @@ export function scoreCompany(c: DiscoverCompany, ctx: DiscoverContext, now = new
     .filter(Boolean)
     .map((s) => (s as string).replace(/\.$/, ""))
     .join(" · ");
-  return { overall, label, evidence, factors, why };
+  return { overall, label, evidence, factors, why, overlap };
 }
 
 export const LABEL_RANK: Record<FitLabel, number> = { strong: 0, potential: 1, needs_verification: 2, below: 3 };

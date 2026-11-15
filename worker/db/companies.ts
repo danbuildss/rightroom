@@ -3,6 +3,8 @@
  * aliases: before inserting, every alias of the new company is looked up, and any
  * match is reported as a conflict naming the existing company.
  */
+
+import { type Audience, type OrgType, type ProfileStatus, parseAudiences, type Stage } from "../../shared/profile.ts";
 import {
   type AliasKind,
   aliasesFor,
@@ -28,6 +30,13 @@ export interface Company {
   created_by: string;
   created_at: string;
   updated_at: string;
+  org_type: OrgType | null;
+  hq_country: string | null;
+  stage: Stage | null;
+  audiences: Audience[];
+  profile_status: ProfileStatus;
+  profile_confirmed_at: string | null;
+  profile_confirmed_by: string | null;
 }
 
 export interface CompanyDetail extends Company {
@@ -47,8 +56,12 @@ export interface StoredSource {
   first_seen_at: string;
 }
 
-type CompanyRow = Omit<Company, "is_sample"> & { is_sample: number };
-const toCompany = (r: CompanyRow): Company => ({ ...r, is_sample: r.is_sample === 1 });
+type CompanyRow = Omit<Company, "is_sample" | "audiences"> & { is_sample: number; audiences_json: string };
+const toCompany = ({ audiences_json, ...r }: CompanyRow): Company => ({
+  ...r,
+  is_sample: r.is_sample === 1,
+  audiences: parseAudiences(audiences_json),
+});
 
 /** Thrown when a new company matches an existing one by any alias. */
 export class DuplicateCompanyError extends ConflictError {
@@ -137,12 +150,22 @@ export async function createCompany(
     created_by: createdBy,
     created_at: at,
     updated_at: at,
+    org_type: input.org_type ?? null,
+    hq_country: input.hq_country ?? null,
+    stage: input.stage ?? null,
+    audiences: input.audiences ?? [],
+    // A profile from a file is only a suggestion until Dan confirms it.
+    profile_status:
+      input.org_type || input.hq_country || input.stage || input.audiences?.length ? "suggested" : "empty",
+    profile_confirmed_at: null,
+    profile_confirmed_by: null,
   };
   const statements = [
     db
       .prepare(
         `INSERT INTO companies (id, slug, name, primary_domain, description, status, is_sample, first_seen_at,
-          last_verified_at, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          last_verified_at, created_by, created_at, updated_at, org_type, hq_country, stage, audiences_json,
+          profile_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         company.id,
@@ -157,6 +180,11 @@ export async function createCompany(
         createdBy,
         at,
         at,
+        company.org_type,
+        company.hq_country,
+        company.stage,
+        JSON.stringify(company.audiences),
+        company.profile_status,
       ),
     ...aliases.map((a) =>
       db
@@ -242,6 +270,7 @@ export interface CompanyFilter {
   q?: string;
   category?: string;
   status?: CompanyStatus;
+  profile?: ProfileStatus;
   limit?: number;
   offset?: number;
 }
@@ -265,6 +294,10 @@ export async function listCompanies(db: D1Database, filter: CompanyFilter = {}):
   if (filter.status) {
     where.push("status = ?");
     args.push(filter.status);
+  }
+  if (filter.profile) {
+    where.push("profile_status = ?");
+    args.push(filter.profile);
   }
   const limit = Math.min(Math.max(filter.limit ?? 50, 1), 200);
   const offset = Math.max(filter.offset ?? 0, 0);
@@ -300,4 +333,20 @@ export async function mergeCompanies(db: D1Database, keepId: string, dropId: str
     db.prepare("UPDATE companies SET updated_at = ? WHERE id = ?").bind(nowIso(now), keepId),
     db.prepare("DELETE FROM companies WHERE id = ?").bind(dropId),
   ]);
+}
+
+/** Confirm pre-filled profiles exactly as suggested. Returns how many changed; empty or confirmed ones are skipped. */
+export async function confirmProfiles(db: D1Database, ids: string[], editor: string, now = new Date()) {
+  const at = nowIso(now);
+  const results = await db.batch(
+    ids.map((id) =>
+      db
+        .prepare(
+          `UPDATE companies SET profile_status = 'confirmed', profile_confirmed_at = ?, profile_confirmed_by = ?,
+           updated_at = ? WHERE id = ? AND profile_status = 'suggested'`,
+        )
+        .bind(at, editor, at, id),
+    ),
+  );
+  return results.reduce((n, r) => n + (r.meta.changes ?? 0), 0);
 }

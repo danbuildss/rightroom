@@ -102,6 +102,28 @@ describe("scoreCompany", () => {
     expect(fit.label).toBe("below");
   });
 
+  it("never calls a company a fit when it shares no sector, technology or keyword (the 59/100 case)", () => {
+    // Open to partners and easy to reach, but nothing in common with the founder.
+    const unrelated = company({
+      name: "Example Games",
+      description: "Mobile games studio.",
+      categories: [{ slug: "gaming", label: "Gaming", kind: "sector" }],
+      contacts: { people: [{ role: "Head of Partnerships", confidence: "high" }], channels: 1 },
+    });
+    const fit = scoreCompany(unrelated, ctx, NOW);
+    expect(fit.factors.map((f) => f.score)).toEqual([1, 3, 5, 5, 2]);
+    // round((1*30 + 3*25 + 5*20 + 5*15 + 2*10) / 5) = 60: this used to be labelled "Potential fit".
+    expect(fit.overall).toBe(60);
+    expect(fit.overlap).toBe(false);
+    expect(fit.label).toBe("below");
+    expect(fit.factors[0]?.reason).toBe("No shared sector found in our data.");
+
+    // The same company with a fresh goal signal and one keyword in common does count.
+    const related = scoreCompany({ ...unrelated, description: "Mobile games with in-app payments." }, ctx, NOW);
+    expect(related.overlap).toBe(true);
+    expect(related.label).not.toBe("below");
+  });
+
   it("treats an old signal as weaker readiness", () => {
     const old = company({
       signals: [

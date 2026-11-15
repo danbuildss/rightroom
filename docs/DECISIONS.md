@@ -2,6 +2,11 @@
 
 Short records of technical decisions, newest first. Product decisions live in `PLAN.md`.
 
+## 2026-11-15: Company profile and the overlap rule (Explore, step 1)
+- **Profile = Rightroom's labels, not verified claims:** `org_type`, `hq_country` (ISO two-letter code), `stage` and `audiences` on `companies` (migration 0012). Like categories, editing them never reopens review. They're shown to founders only when `profile_status = 'confirmed'`.
+- **Suggestions are never shown as fact.** A profile in an import file, or the pre-filled one for the 49 companies verified so far (in migration 0012, from their verified descriptions and sectors), is stored as `suggested`. Dan confirms in the back office (one by one, by editing, or in a batch). Location is left empty, and stage is filled in only where a company is clearly established. Who confirmed and when is recorded.
+- **No overlap, no fit:** `scoreCompany` returns `overlap` (shares a target or own sector, a keyword in the description, or a technology/ecosystem). Without it the label is `below`, so readiness and contact alone can't make a match. This was the "59/100, no shared sector" case: 1/3/5/5/2 = 60, labelled Potential fit before. The formula and weights are unchanged.
+
 ## 2026-11-15: Motion (audit batch 4: M1–M8, F4)
 - **CSS animations, no motion library.** Everything is CSS keyframes and transitions plus a little React state (`app/src/motion.tsx`) and plain JavaScript on the site; no new dependencies. Each animation is listed in `brand/BRAND.md` and switched off under `prefers-reduced-motion`, where the finished state shows at once.
 - **Toasts (`ToastProvider`, `useToast`)** confirm Save, Move, Remove, Copy, Draft saved and Notes saved, in one polite live region. Undo is offered for Save (removes the new pipeline entry) and Move (moves back). Remove keeps its confirm and has no Undo, because restoring would lose the timeline.

@@ -2,8 +2,10 @@
  * The shared company registry: input format and the normalization rules that
  * decide when two records are the same company or the same source.
  */
+
 import { z } from "zod";
 import { domainSchema, httpUrl, normalizeDomain } from "./candidate.ts";
+import { profileFields } from "./profile.ts";
 
 export const ALIAS_KINDS = ["name", "domain", "github_org", "x_handle"] as const;
 export type AliasKind = (typeof ALIAS_KINDS)[number];
@@ -141,6 +143,11 @@ export const companyInputSchema = z.strictObject({
   aliases: z.array(aliasInputSchema).max(20).default([]),
   sources: z.array(sourceInputSchema).max(20).default([]),
   is_sample: z.boolean().default(false),
+  // Optional Explore profile; stored as a suggestion for Dan to confirm.
+  org_type: profileFields.org_type.optional(),
+  hq_country: profileFields.hq_country.optional(),
+  stage: profileFields.stage.optional(),
+  audiences: profileFields.audiences.optional(),
 });
 export type CompanyInput = z.infer<typeof companyInputSchema>;
 

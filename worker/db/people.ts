@@ -59,9 +59,9 @@ export async function suggestContact(
 export async function findContacts(db: D1Database, companyId: string, opts: { fetcher?: typeof fetch } = {}) {
   const fetcher = opts.fetcher ?? fetch;
   const co = await db
-    .prepare("SELECT id, primary_domain AS domain FROM companies WHERE id = ?")
+    .prepare("SELECT id, name, primary_domain AS domain FROM companies WHERE id = ?")
     .bind(companyId)
-    .first<{ id: string; domain: string }>();
+    .first<{ id: string; name: string; domain: string }>();
   if (!co) throw new NotFoundError("company not found");
 
   let added = 0;
@@ -72,7 +72,7 @@ export async function findContacts(db: D1Database, companyId: string, opts: { fe
     if (p) pages.push(p);
   }
   for (const p of pages) {
-    for (const person of extractPeople(p.html)) {
+    for (const person of extractPeople(p.html, co.name)) {
       if (
         await suggestContact(
           db,

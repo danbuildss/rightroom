@@ -377,6 +377,7 @@ async function collectGrok(
     listed?: number;
     kept?: number;
     dropped?: unknown[];
+    keptItems?: unknown[];
     answer?: string | null;
     error?: string | null;
     cost?: number | null;
@@ -384,7 +385,7 @@ async function collectGrok(
     db
       .prepare(
         `INSERT INTO grok_runs (id, watched_source_id, ran_at, status, model, query, from_date, max_posts, posts_read, listed,
-           kept, dropped_json, answer_excerpt, error, cost_usd) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           kept, dropped_json, answer_excerpt, error, cost_usd, kept_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         newId(),
@@ -402,6 +403,7 @@ async function collectGrok(
         r.answer ?? null,
         r.error ?? null,
         r.cost ?? null,
+        JSON.stringify(r.keptItems ?? []),
       );
   let res: Response;
   try {
@@ -450,6 +452,7 @@ async function collectGrok(
     listed: parsed.debug.listed,
     kept: parsed.items.length,
     dropped: parsed.debug.dropped,
+    keptItems: parsed.items.map((i) => ({ url: i.url, title: i.title, published_at: i.published_at })),
     answer: parsed.debug.answer_excerpt,
     cost,
   }).run();

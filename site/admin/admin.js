@@ -1282,11 +1282,32 @@ views.contacts = async (view) => {
 const usd = (n, d = 2) => (n === null || n === undefined ? "—" : `$${Number(n).toFixed(d)}`);
 views.grok = async (view) => {
   const render = async () => {
-    const [g, { suggestions }, { companies }] = await Promise.all([
+    const [g, { suggestions }, { companies }, { results }] = await Promise.all([
       api("GET", "/grok"),
       api("GET", "/grok/handles"),
       api("GET", "/companies?status=verified&limit=200"),
+      api("GET", "/grok/results"),
     ]);
+    const STATE = { new: ["blue", "In your Inbox"], promoted: ["ok", "Made a signal"], dismissed: ["grey", "Dismissed"] };
+    const resultsPanel = `<div class="panel"><h2>Results <span>Every post Grok found, newest first · rate them here or turn them into signals in the Inbox</span></h2>
+      ${
+        results.length
+          ? `<div class="gres">${results
+              .map(
+                (r) => `<article class="gpost" data-rid="${esc(r.id)}">
+              <div class="ph"><span class="meta">${esc(r.search.replace(/^Grok (test|research): /, ""))}${r.published_at ? ` · ${day(r.published_at)}` : ""}</span><span class="pill ${STATE[r.status]?.[0] ?? "grey"}">${STATE[r.status]?.[1] ?? esc(r.status)}</span></div>
+              <p class="gtitle">${esc(r.title)}</p>
+              ${r.excerpt && r.excerpt !== r.title ? `<p class="meta">${esc(r.excerpt)}</p>` : ""}
+              <div class="row-actions">${link(r.url, "Open the post")}${r.suggested_domain ? ` <span class="meta">· ${esc(r.suggested_domain)}</span>` : ""}
+                <span class="grow"></span>
+                <button class="btn sm${r.useful === 1 ? " blue" : ""}" type="button" data-grate="1" aria-pressed="${r.useful === 1}">👍 Useful</button>
+                <button class="btn sm${r.useful === 0 ? " dark" : ""}" type="button" data-grate="0" aria-pressed="${r.useful === 0}">👎 Not useful</button>
+              </div>
+            </article>`,
+              )
+              .join("")}</div>`
+          : `<div class="pad meta">Nothing yet. Run a search or research a company; what Grok finds appears here.</div>`
+      }</div>`;
     const pct = g.budget.cap ? Math.min(100, (g.budget.spent / g.budget.cap) * 100) : 0;
     const topics = g.searches.filter((x) => x.kind === "topic");
     const research = g.searches.filter((x) => x.kind === "company");
@@ -1325,6 +1346,8 @@ views.grok = async (view) => {
         <p class="help">Posts land in your Inbox to rate and turn into signals. A suggested X handle appears below; it only becomes the company's X link when you accept it.</p>
         <div id="grok-co-result"></div>
       </div>${research.length ? table(research, "") : ""}</div>
+
+      ${resultsPanel}
 
       <div class="panel"><h2>X handles to confirm <span>From company research, backed by a post from that account</span></h2>
         ${
@@ -1378,6 +1401,13 @@ views.grok = async (view) => {
         const { outcome } = await api("POST", `/watched-sources/${encodeURIComponent(b.dataset.run)}/run`);
         toast(outcome.status === "ok" ? `${outcome.items_new} new results in your Inbox.` : outcome.error || "Didn't run.", { bad: outcome.status === "failed" });
         await render();
+      } else if (t.closest("[data-grate]")) {
+        const b = t.closest("[data-grate]");
+        const id = b.closest("[data-rid]").dataset.rid;
+        const useful = b.dataset.grate === "1";
+        const pressed = b.getAttribute("aria-pressed") === "true";
+        await api("POST", `/inbox/${encodeURIComponent(id)}/rate`, { useful: pressed ? null : useful });
+        await render();
       } else if (t.closest("[data-details]")) {
         const b = t.closest("[data-details]");
         const row = view.querySelector(`[data-details-for="${CSS.escape(b.dataset.details)}"]`);
@@ -1396,7 +1426,9 @@ views.grok = async (view) => {
               <div class="ph"><b>${day(r.ran_at)} ${new Date(r.ran_at).toISOString().slice(11, 16)} UTC</b><span class="pill ${r.status === "ok" ? "ok" : "bad"}">${r.status === "ok" ? "Ran" : "Failed"}</span></div>
               <p class="meta">Asked: “${esc(r.query)}” · posts from ${esc(r.from_date)} · up to ${r.max_posts} · model ${esc(r.model)}</p>
               ${r.error ? `<p class="warn-t">${esc(r.error)}</p>` : ""}
-              ${r.status === "ok" ? `<p class="meta">xAI read ${r.posts_read} posts · Grok listed ${r.listed} · kept ${r.kept} · dropped ${r.listed - r.kept}${r.cost_usd !== null ? ` · cost ${usd(r.cost_usd, 3)}` : ""}</p>` : ""}
+              ${r.status === "ok" ? `<p><b>${r.kept} ${r.kept === 1 ? "post" : "posts"} found</b>${r.cost_usd !== null ? ` <span class="meta">· cost ${usd(r.cost_usd, 3)}</span>` : ""}</p>` : ""}
+              ${r.kept_posts?.length ? `<ul class="gkept">${r.kept_posts.map((k) => `<li>${link(k.url, k.title)}${k.published_at ? ` <span class="meta">· ${day(k.published_at)}</span>` : ""}</li>`).join("")}</ul>` : ""}
+              ${r.status === "ok" ? `<p class="meta">xAI read ${r.posts_read} posts · Grok listed ${r.listed} · kept ${r.kept} · dropped ${r.listed - r.kept}</p>` : ""}
               ${r.dropped.length ? `<details><summary>Why ${r.dropped.length} were dropped</summary><ul>${r.dropped.map((d) => `<li>${esc(d.url)}: ${esc(d.reason)}</li>`).join("")}</ul></details>` : ""}
               ${r.answer_excerpt ? `<details><summary>Grok's answer (start)</summary><pre class="gans">${esc(r.answer_excerpt)}</pre></details>` : ""}
               ${r.status === "ok" && r.listed === 0 ? `<p class="meta">Grok found no matching posts in this period. Try a broader question or more days.</p>` : ""}

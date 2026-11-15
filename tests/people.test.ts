@@ -37,4 +37,20 @@ describe("points of contact from a company's own pages", () => {
       "https://acme.dev/team",
     ]);
   });
+
+  it("skips investors, advisors and board members, and roles at other companies", () => {
+    const html = `<h2>Our team</h2><h3>Jane Doe</h3><p>Co-founder &amp; CEO</p>
+      <h2>Backed by</h2><h3>Pat Investor</h3><p>Founder</p><h3>Sam Venture</h3><p>Partner</p>
+      <h2>Advisors</h2><h3>Lee Adviser</h3><p>CTO</p>
+      <h2>Leadership</h2><h3>Kim Rivera</h3><p>Head of Partnerships</p>
+      <h3>Max Other</h3><p>Founder at Other Corp</p><h3>Ann Fund</h3><p>General Partner, Big Capital</p>`;
+    expect(extractPeople(html, "Acme")).toEqual([
+      { name: "Jane Doe", role: "Co-founder & CEO" },
+      { name: "Kim Rivera", role: "Head of Partnerships" },
+    ]);
+    expect(extractPeople("<h3>Ola Bee</h3><p>Partner</p>")).toEqual([]);
+    expect(extractPeople("<h3>Ola Bee</h3><p>Founder at Acme</p>", "Acme")).toEqual([
+      { name: "Ola Bee", role: "Founder at Acme" },
+    ]);
+  });
 });

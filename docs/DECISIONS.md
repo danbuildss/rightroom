@@ -2,6 +2,15 @@
 
 Short records of technical decisions, newest first. Product decisions live in `PLAN.md`.
 
+## 2026-11-15: Engine tuning after Dan's first run
+- **Contacts:**
+  - "Partner" on its own (as in "Partner at a fund") no longer counts as a partnerships role; it must be "Partnerships", "Partnership lead" and so on.
+  - Investors, angels, advisors, board members, mentors, and roles at venture firms or funds are skipped.
+  - People listed under an "Investors", "Backed by", "Advisors" or "Board" heading are skipped until a team or leadership heading.
+  - A role naming another organisation ("Founder at OtherCo") is skipped.
+  - Migration 0019 rejects existing waiting suggestions that look like investors, with a reason.
+- **Grok, one place to see results:** the Grok page lists every post Grok found (search, date, text, link, state, 👍 / 👎). Run details now lead with the posts kept (`grok_runs.kept_json`) and put the counts after.
+
 ## 2026-11-15: Grok fix: match cited posts by number, and log every run
 - **Bug:** Grok's answer names posts as `x.com/<account>/status/<id>`, while xAI often cites them as `x.com/i/status/<id>`. We compared whole links, so real posts were dropped as "not cited", and Dan's first searches found nothing. Posts are now matched on their status number. When the citation names the account, that name wins over Grok's. Handle and people evidence must still be a cited post by that same account (when the citation doesn't name the account, Grok's claim is used and Dan checks the link).
 - **Run log (`grok_runs`, migration 0018):** every Grok call records:

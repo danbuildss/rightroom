@@ -13,6 +13,7 @@ import { describe, expect, it } from "vitest";
 import { SignInPlaceholder } from "../app/src/App.tsx";
 import type { DiscoverResult } from "../app/src/api.ts";
 import { ResultCard } from "../app/src/Discover.tsx";
+import { CountUp, FitMeter } from "../app/src/motion.tsx";
 
 async function scan(html: string, opts: { fragment?: boolean } = {}) {
   const doc = opts.fragment
@@ -122,5 +123,19 @@ describe("accessibility (axe)", () => {
     expect(
       await scan(`<!doctype html><html lang="en"><head><title>Sign in</title></head><body>${html}</body></html>`),
     ).toEqual([]);
+  });
+
+  it("the weighted fit meter and score count-up have no issues and give the real values", async () => {
+    const html = renderToStaticMarkup(
+      createElement(
+        "div",
+        null,
+        createElement(FitMeter, { factors: card.fit.factors }),
+        createElement("div", null, createElement(CountUp, { value: 78 })),
+      ),
+    );
+    expect(await scan(html, { fragment: true })).toEqual([]);
+    expect(html).toContain("Partnership readiness 5 of 5");
+    expect(html).toContain('<span class="sr">78</span>');
   });
 });

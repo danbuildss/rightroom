@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { type CompanyIntel, companyIntel } from "./api.ts";
 import { SaveButton } from "./Discover.tsx";
 import { DraftPanel } from "./DraftPanel.tsx";
+import { CountUp, FitMeter } from "./motion.tsx";
 
 const LABELS = { strong: "Strong fit", potential: "Potential fit", needs_verification: "Needs verification" } as const;
 const EVIDENCE = { high: "High", medium: "Medium", low: "Low" } as const;
@@ -105,13 +106,13 @@ export function Company({ slug, onBack }: { slug: string; onBack: () => void }) 
           <span className={`fit ${c.fit.label}`}>{LABELS[c.fit.label]}</span>
           {c.fit.overall !== null ? (
             <div className="ibig">
-              {c.fit.overall}
+              <CountUp value={c.fit.overall} />
               <small> / 100</small>
             </div>
           ) : null}
           <div className="ev">Evidence: {EVIDENCE[c.fit.evidence]} · Rightroom's estimate</div>
           <div className="iacts">
-            <SaveButton key={c.saved?.stage ?? "none"} slug={c.slug} saved={c.saved} />
+            <SaveButton key={c.saved?.stage ?? "none"} slug={c.slug} saved={c.saved} name={c.name} />
           </div>
         </div>
       </header>
@@ -159,6 +160,7 @@ export function Company({ slug, onBack }: { slug: string; onBack: () => void }) 
           <p className="src">
             Built from {s.based_on.charAt(0).toLowerCase() + s.based_on.slice(1)} Check it before you rely on it.
           </p>
+          <FitMeter factors={c.fit.factors} />
           <p className="src">
             Fit: alignment {f("alignment")}/5 · value {f("mutual_value")}/5 · readiness {f("readiness")}/5 · contact{" "}
             {f("contact_access")}/5 · feasibility {f("feasibility")}/5{" "}

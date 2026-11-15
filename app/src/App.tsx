@@ -3,6 +3,7 @@ import { ApiError, api, pipeline, type View } from "./api.ts";
 import { markPrivyLogout } from "./authFlag.ts";
 import { Company } from "./Company.tsx";
 import { Discover } from "./Discover.tsx";
+import { ToastProvider } from "./motion.tsx";
 import { Pipeline } from "./Pipeline.tsx";
 import { Logo, Screen } from "./ui.tsx";
 
@@ -122,13 +123,20 @@ function FounderHome(props: {
 }) {
   const { stage, setStage, signOut, onDeleted } = props;
   const [savedCount, setSavedCount] = useState<number | null>(null);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: refresh the count whenever the founder changes page
-  useEffect(() => {
+  const refreshCount = useCallback(() => {
     pipeline
       .list()
       .then((d) => setSavedCount(d.items.length))
       .catch(() => undefined);
+  }, []);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refresh the count whenever the founder changes page
+  useEffect(() => {
+    refreshCount();
   }, [stage.tab, stage.profile]);
+  useEffect(() => {
+    window.addEventListener("rr:saved-changed", refreshCount);
+    return () => window.removeEventListener("rr:saved-changed", refreshCount);
+  }, [refreshCount]);
   const { founder, profile } = stage.view;
   const step = stage.editing ?? stage.at ?? (founder.onboarding_step <= 4 ? founder.onboarding_step : 0);
   const first = founder.name?.split(" ")[0] ?? "there";
@@ -176,120 +184,130 @@ function FounderHome(props: {
     : "e.g. Payments companies that could integrate our API and help us reach more businesses";
 
   return (
-    <div className="shell">
-      <aside className="side">
-        <Logo />
-        <nav aria-label="Workspace">
-          <button
-            type="button"
-            className={tab === "discover" ? "navi on" : "navi"}
-            aria-current={tab === "discover" ? "page" : undefined}
-            onClick={() => go("discover")}
-          >
-            Discover
-          </button>
-          <button
-            type="button"
-            className={tab === "saved" ? "navi on" : "navi"}
-            aria-current={tab === "saved" ? "page" : undefined}
-            onClick={() => go("saved")}
-          >
-            Saved {savedCount !== null ? <span className="ncount">{savedCount}</span> : null}
-          </button>
-          <button
-            type="button"
-            className={tab === "pipeline" ? "navi on" : "navi"}
-            aria-current={tab === "pipeline" ? "page" : undefined}
-            onClick={() => go("pipeline")}
-          >
-            Pipeline
-          </button>
-          <button
-            type="button"
-            className={tab === "company" ? "navi on" : "navi"}
-            aria-current={tab === "company" ? "page" : undefined}
-            onClick={() => go("company")}
-          >
-            Your company
-          </button>
-        </nav>
-        <div className="sidefoot">
-          {founder.name ?? founder.email ?? (founder.x_handle ? `@${founder.x_handle}` : "")}
-          <button type="button" className="linkbtn" onClick={signOut}>
-            Sign out
-          </button>
-        </div>
-      </aside>
-      <main className="wmain">
-        <div hidden={tab !== "discover" || Boolean(stage.profile)}>
-          <Discover suggestion={suggestion} onOpen={(slug) => setStage({ ...stage, tab: "discover", profile: slug })} />
-        </div>
-        {tab === "discover" && stage.profile ? (
-          <Company slug={stage.profile} onBack={() => setStage({ ...stage, profile: undefined })} />
-        ) : null}
-        {tab === "saved" || tab === "pipeline" ? (
-          <Pipeline
-            view={tab === "saved" ? "list" : "board"}
-            onCount={setSavedCount}
-            onOpenCompany={(slug) => setStage({ ...stage, tab: "discover", profile: slug })}
-          />
-        ) : null}
-        {tab !== "company" ? null : (
-          <div className="company">
-            <h1>Your company</h1>
-            <p className="sub">
-              Hi {first}. Your workspace is private to you. Discover uses these answers to rank companies.
-            </p>
-            <ul className="checklist">
-              <li>
-                <div>
-                  <span className="k">You</span>
-                  {founder.name ?? "—"}
-                  {founder.role ? ` · ${founder.role}` : ""}
-                </div>
-                <button type="button" className="linkbtn" onClick={() => setStage({ ...stage, editing: 1 })}>
-                  Edit
-                </button>
-              </li>
-              <li>
-                <div>
-                  <span className="k">Company</span>
-                  {[profile.company_name, profile.website?.replace(/^https?:\/\//, "")].filter(Boolean).join(" · ") ||
-                    "—"}
-                  {profile.one_liner ? <span className="d">{profile.one_liner}</span> : null}
-                </div>
-                <button type="button" className="linkbtn" onClick={() => setStage({ ...stage, editing: 2 })}>
-                  Edit
-                </button>
-              </li>
-              <li>
-                <div>
-                  <span className="k">Partners wanted</span>
-                  {label(GOALS, profile.goals) || "—"}
-                </div>
-                <button type="button" className="linkbtn" onClick={() => setStage({ ...stage, editing: 3 })}>
-                  Edit
-                </button>
-              </li>
-              <li>
-                <div>
-                  <span className="k">Markets</span>
-                  {label(MARKETS, profile.markets) || "—"}
-                </div>
-                <button type="button" className="linkbtn" onClick={() => setStage({ ...stage, editing: 4 })}>
-                  Edit
-                </button>
-              </li>
-            </ul>
-            <p className="fine">
-              <button type="button" className="linkbtn" onClick={deleteAccount}>
-                Delete my account and data
-              </button>
-            </p>
+    <ToastProvider>
+      <div className="shell">
+        <aside className="side">
+          <Logo />
+          <nav aria-label="Workspace">
+            <button
+              type="button"
+              className={tab === "discover" ? "navi on" : "navi"}
+              aria-current={tab === "discover" ? "page" : undefined}
+              onClick={() => go("discover")}
+            >
+              Discover
+            </button>
+            <button
+              type="button"
+              className={tab === "saved" ? "navi on" : "navi"}
+              aria-current={tab === "saved" ? "page" : undefined}
+              onClick={() => go("saved")}
+            >
+              Saved{" "}
+              {savedCount !== null ? (
+                <span className="ncount" key={savedCount}>
+                  {savedCount}
+                </span>
+              ) : null}
+            </button>
+            <button
+              type="button"
+              className={tab === "pipeline" ? "navi on" : "navi"}
+              aria-current={tab === "pipeline" ? "page" : undefined}
+              onClick={() => go("pipeline")}
+            >
+              Pipeline
+            </button>
+            <button
+              type="button"
+              className={tab === "company" ? "navi on" : "navi"}
+              aria-current={tab === "company" ? "page" : undefined}
+              onClick={() => go("company")}
+            >
+              Your company
+            </button>
+          </nav>
+          <div className="sidefoot">
+            {founder.name ?? founder.email ?? (founder.x_handle ? `@${founder.x_handle}` : "")}
+            <button type="button" className="linkbtn" onClick={signOut}>
+              Sign out
+            </button>
           </div>
-        )}
-      </main>
-    </div>
+        </aside>
+        <main className="wmain">
+          <div hidden={tab !== "discover" || Boolean(stage.profile)}>
+            <Discover
+              suggestion={suggestion}
+              onOpen={(slug) => setStage({ ...stage, tab: "discover", profile: slug })}
+            />
+          </div>
+          {tab === "discover" && stage.profile ? (
+            <Company slug={stage.profile} onBack={() => setStage({ ...stage, profile: undefined })} />
+          ) : null}
+          {tab === "saved" || tab === "pipeline" ? (
+            <Pipeline
+              view={tab === "saved" ? "list" : "board"}
+              onCount={setSavedCount}
+              onOpenCompany={(slug) => setStage({ ...stage, tab: "discover", profile: slug })}
+            />
+          ) : null}
+          {tab !== "company" ? null : (
+            <div className="company">
+              <h1>Your company</h1>
+              <p className="sub">
+                Hi {first}. Your workspace is private to you. Discover uses these answers to rank companies.
+              </p>
+              <ul className="checklist">
+                <li>
+                  <div>
+                    <span className="k">You</span>
+                    {founder.name ?? "—"}
+                    {founder.role ? ` · ${founder.role}` : ""}
+                  </div>
+                  <button type="button" className="linkbtn" onClick={() => setStage({ ...stage, editing: 1 })}>
+                    Edit
+                  </button>
+                </li>
+                <li>
+                  <div>
+                    <span className="k">Company</span>
+                    {[profile.company_name, profile.website?.replace(/^https?:\/\//, "")].filter(Boolean).join(" · ") ||
+                      "—"}
+                    {profile.one_liner ? <span className="d">{profile.one_liner}</span> : null}
+                  </div>
+                  <button type="button" className="linkbtn" onClick={() => setStage({ ...stage, editing: 2 })}>
+                    Edit
+                  </button>
+                </li>
+                <li>
+                  <div>
+                    <span className="k">Partners wanted</span>
+                    {label(GOALS, profile.goals) || "—"}
+                  </div>
+                  <button type="button" className="linkbtn" onClick={() => setStage({ ...stage, editing: 3 })}>
+                    Edit
+                  </button>
+                </li>
+                <li>
+                  <div>
+                    <span className="k">Markets</span>
+                    {label(MARKETS, profile.markets) || "—"}
+                  </div>
+                  <button type="button" className="linkbtn" onClick={() => setStage({ ...stage, editing: 4 })}>
+                    Edit
+                  </button>
+                </li>
+              </ul>
+              <p className="fine">
+                <button type="button" className="linkbtn" onClick={deleteAccount}>
+                  Delete my account and data
+                </button>
+              </p>
+            </div>
+          )}
+        </main>
+      </div>
+    </ToastProvider>
   );
 }
 

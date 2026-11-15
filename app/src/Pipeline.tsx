@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
-import { type PipelineItem, pipeline, type Stage } from "./api.ts";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { type CompanyIntel, companyIntel, type PipelineItem, pipeline, type Stage } from "./api.ts";
 import { DraftPanel } from "./DraftPanel.tsx";
+import { announceSavedChange, useToast } from "./motion.tsx";
 import { useFocusTrap } from "./ui.tsx";
 
 const STAGES: Stage[] = ["shortlisted", "contacted", "in_discussion", "partnered"];
@@ -16,6 +17,8 @@ const EMPTY: Record<Stage, string> = {
   in_discussion: "Move a company here once a conversation has started.",
   partnered: "Move a company here when you've agreed to work together.",
 };
+
+const BITS = ["a", "b", "c", "d", "e", "f", "g", "h"];
 
 const day = (iso: string | null) =>
   iso
@@ -55,6 +58,11 @@ export function Pipeline({
   const [error, setError] = useState("");
   const [mode, setMode] = useState(view);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [moved, setMoved] = useState<{ id: string; partnered: boolean } | null>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [over, setOver] = useState<Stage | null>(null);
+  const [canDrag] = useState(() => window.matchMedia?.("(hover: hover) and (pointer: fine)").matches ?? false);
+  const toast = useToast();
 
   const load = useCallback(() => {
     pipeline
@@ -73,8 +81,26 @@ export function Pipeline({
     load();
   }, [load]);
 
-  const move = async (item: PipelineItem, stage: Stage) => {
-    await pipeline.update(item.id, { stage }).catch(() => undefined);
+  useEffect(() => {
+    if (!moved) return;
+    const t = setTimeout(() => setMoved(null), 1400);
+    return () => clearTimeout(t);
+  }, [moved]);
+
+  // Moves show at once, then save. Undo moves the card back.
+  const move = async (item: PipelineItem, stage: Stage, quiet = false) => {
+    if (item.stage === stage) return;
+    const from = item.stage;
+    setData((d) => d && { ...d, items: d.items.map((i) => (i.id === item.id ? { ...i, stage } : i)) });
+    setMoved({ id: item.id, partnered: stage === "partnered" });
+    try {
+      await pipeline.update(item.id, { stage });
+      if (!quiet) {
+        toast(`Moved ${item.name} to ${STAGE_LABELS[stage]}`, { undo: () => move({ ...item, stage }, from, true) });
+      }
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Couldn't move it. Please try again.");
+    }
     load();
   };
 
@@ -135,7 +161,27 @@ export function Pipeline({
           {STAGES.map((stage) => {
             const items = data.items.filter((i) => i.stage === stage);
             return (
-              <section className="col" key={stage} aria-label={STAGE_LABELS[stage]}>
+              <section
+                className={over === stage ? "col over" : "col"}
+                key={stage}
+                aria-label={STAGE_LABELS[stage]}
+                onDragOver={(e) => {
+                  if (!dragId) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                  if (over !== stage) setOver(stage);
+                }}
+                onDragLeave={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(null);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const item = data.items.find((i) => i.id === dragId);
+                  setOver(null);
+                  setDragId(null);
+                  if (item) move(item, stage);
+                }}
+              >
                 <div className="colh">
                   {STAGE_LABELS[stage]} <span>{items.length}</span>
                 </div>
@@ -147,6 +193,19 @@ export function Pipeline({
                     today={data.today}
                     onOpen={() => setOpenId(i.id)}
                     onMove={(s) => move(i, s)}
+                    motion={moved?.id === i.id ? (moved.partnered ? "partnered" : "moved") : undefined}
+                    drag={
+                      canDrag
+                        ? {
+                            dragging: dragId === i.id,
+                            start: () => setDragId(i.id),
+                            end: () => {
+                              setDragId(null);
+                              setOver(null);
+                            },
+                          }
+                        : undefined
+                    }
                   />
                 ))}
               </section>
@@ -174,6 +233,7 @@ export function Pipeline({
           today={data.today}
           onClose={() => setOpenId(null)}
           onChanged={load}
+          onMoved={(stage) => setMoved({ id: open.id, partnered: stage === "partnered" })}
           onOpenCompany={() => onOpenCompany(open.slug)}
         />
       ) : null}
@@ -187,19 +247,54 @@ function Card({
   onOpen,
   onMove,
   showStage,
+  motion,
+  drag,
 }: {
   item: PipelineItem;
   today: string;
   onOpen: () => void;
   onMove: (s: Stage) => void;
   showStage?: boolean;
+  motion?: "moved" | "partnered";
+  drag?: { dragging: boolean; start: () => void; end: () => void };
 }) {
   const follow = followLabel(item, today);
+  const cls = [
+    "pc",
+    drag ? "grab" : "",
+    drag?.dragging ? "dragging" : "",
+    motion ? "settle" : "",
+    motion === "partnered" ? "party" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
   return (
-    <article className="pc">
-      <button type="button" className="pn" onClick={onOpen}>
-        {item.name}
-      </button>
+    <article
+      className={cls}
+      draggable={drag ? true : undefined}
+      onDragStart={
+        drag
+          ? (e) => {
+              e.dataTransfer.effectAllowed = "move";
+              e.dataTransfer.setData("text/plain", item.id);
+              drag.start();
+            }
+          : undefined
+      }
+      onDragEnd={drag?.end}
+    >
+      {motion === "partnered" ? (
+        <span className="confetti" aria-hidden="true">
+          {BITS.map((b) => (
+            <i key={b} />
+          ))}
+        </span>
+      ) : null}
+      <Peek slug={item.slug}>
+        <button type="button" className="pn" onClick={onOpen}>
+          {item.name}
+        </button>
+      </Peek>
       <div className="ps">{subline(item)}</div>
       <div className="pchips">
         {showStage ? <span className="chip stage">{STAGE_LABELS[item.stage]}</span> : null}
@@ -228,15 +323,18 @@ function Detail({
   today,
   onClose,
   onChanged,
+  onMoved,
   onOpenCompany,
 }: {
   item: PipelineItem;
   today: string;
   onClose: () => void;
   onChanged: () => void;
+  onMoved: (stage: Stage) => void;
   onOpenCompany: () => void;
 }) {
   const trapRef = useFocusTrap<HTMLDivElement>();
+  const toast = useToast();
   const [notes, setNotes] = useState(item.notes ?? "");
   const [events, setEvents] = useState<{ at: string; text: string }[]>([]);
   const [drafting, setDrafting] = useState(false);
@@ -263,10 +361,17 @@ function Detail({
   const update = async (d: { stage?: Stage; follow_up_at?: string | null; notes?: string }, done?: string) => {
     try {
       await pipeline.update(item.id, d);
-      if (done) {
-        setMsg(done);
-        setTimeout(() => setMsg(""), 2500);
+      if (d.stage && d.stage !== item.stage) {
+        const from = item.stage;
+        onMoved(d.stage);
+        toast(`Moved ${item.name} to ${STAGE_LABELS[d.stage]}`, {
+          undo: async () => {
+            await pipeline.update(item.id, { stage: from });
+            onChanged();
+          },
+        });
       }
+      if (done) toast(done);
       onChanged();
       loadTimeline();
     } catch (err) {
@@ -375,7 +480,13 @@ function Detail({
             className="btn btn-ghost"
             onClick={async () => {
               if (!window.confirm(`Remove ${item.name} from your pipeline? Its drafts stay saved.`)) return;
-              await pipeline.remove(item.id).catch(() => undefined);
+              try {
+                await pipeline.remove(item.id);
+                toast(`Removed ${item.name} from your pipeline.`);
+                announceSavedChange();
+              } catch (err) {
+                toast(err instanceof Error ? err.message : "Couldn't remove it. Please try again.");
+              }
               onClose();
               onChanged();
             }}
@@ -388,5 +499,62 @@ function Detail({
         </div>
       </div>
     </>
+  );
+}
+
+/* Hover card on a company name (mouse only): sector, fit and latest signal, from the company page's data. */
+const peekCache = new Map<string, Promise<CompanyIntel>>();
+const PEEK_LABELS = {
+  strong: "Strong fit",
+  potential: "Potential fit",
+  needs_verification: "Needs verification",
+} as const;
+
+function Peek({ slug, children }: { slug: string; children: ReactNode }) {
+  const [intel, setIntel] = useState<CompanyIntel | null>(null);
+  const [show, setShow] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const enter = () => {
+    if (!window.matchMedia?.("(hover: hover)").matches) return;
+    timer.current = setTimeout(() => {
+      let p = peekCache.get(slug);
+      if (!p) {
+        p = companyIntel(slug);
+        p.catch(() => peekCache.delete(slug));
+        peekCache.set(slug, p);
+      }
+      p.then((d) => {
+        setIntel(d);
+        setShow(true);
+      }).catch(() => undefined);
+    }, 350);
+  };
+  const leave = () => {
+    clearTimeout(timer.current);
+    setShow(false);
+  };
+  const c = intel?.company;
+  const latest = c?.signals[0];
+  const sectors = c?.categories.filter((x) => x.kind === "sector").map((x) => x.label) ?? [];
+  return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: mouse-only extra; the same facts are on the company page
+    <span className="peekwrap" onMouseEnter={enter} onMouseLeave={leave}>
+      {children}
+      {show && c ? (
+        <span className="peek" aria-hidden="true">
+          <span className="pk1">{sectors.join(" · ") || c.domain}</span>
+          <span className="pk2">
+            <span className={`fit ${c.fit.label}`}>{PEEK_LABELS[c.fit.label]}</span>
+            {c.fit.overall !== null ? <b>{c.fit.overall}</b> : null}
+          </span>
+          <span className="pk3">
+            {latest
+              ? `✓ ${latest.type_label}${latest.event_date ? ` · ${day(latest.event_date)}` : ""}`
+              : "No verified signals yet"}
+          </span>
+        </span>
+      ) : null}
+    </span>
   );
 }

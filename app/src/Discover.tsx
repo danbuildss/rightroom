@@ -1,5 +1,6 @@
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { type DiscoverResponse, type DiscoverResult, discover, pipeline } from "./api.ts";
+import { announceSavedChange, prefersReducedMotion, useToast } from "./motion.tsx";
 
 const GOAL_LABELS: Record<string, string> = {
   integrations: "Integrations",
@@ -19,6 +20,24 @@ const day = (iso: string | null) =>
         timeZone: "UTC",
       })
     : "";
+// Example searches the empty search box cycles through (placeholder text only).
+const EXAMPLES = [
+  "e.g. Developer platforms with a partner program we could join",
+  "e.g. Companies whose customers would also need our product",
+  "e.g. AI infrastructure companies that list integration partners",
+];
+
+/** Cycles the search box's example text every few seconds while it's empty and not focused. */
+function useRotatingPlaceholder(first: string, paused: boolean) {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    if (paused || prefersReducedMotion()) return;
+    const t = setInterval(() => setI((n) => (n + 1) % (EXAMPLES.length + 1)), 3500);
+    return () => clearInterval(t);
+  }, [paused]);
+  return i === 0 ? first : (EXAMPLES[i - 1] ?? first);
+}
+
 const title = (s: string) => s.replace(/\b\w/g, (c) => c.toUpperCase());
 const safeHref = (url: string) => (/^https?:\/\//i.test(url) ? url : undefined);
 
@@ -32,6 +51,8 @@ export function Discover({ suggestion, onOpen }: { suggestion: string; onOpen: (
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState<string | null>(null);
+  const [focused, setFocused] = useState(false);
+  const placeholder = useRotatingPlaceholder(suggestion, focused || q.length > 0);
 
   const run = useCallback(async (params: { q: string; cats?: string[]; goals?: string[]; category?: string }) => {
     setLoading(true);
@@ -88,8 +109,10 @@ export function Discover({ suggestion, onOpen }: { suggestion: string; onOpen: (
           id="dq"
           rows={2}
           maxLength={500}
-          placeholder={suggestion}
+          placeholder={placeholder}
           value={q}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
@@ -160,7 +183,23 @@ export function Discover({ suggestion, onOpen }: { suggestion: string; onOpen: (
           {error}
         </p>
       ) : null}
-      {loading && !data ? <div className="loading">Finding matches…</div> : null}
+      {loading ? (
+        <p className="reading" role="status">
+          <span className="rdot" aria-hidden="true" />
+          Reading verified sources…
+        </p>
+      ) : null}
+      {loading && !data ? (
+        <div className="skels" aria-hidden="true">
+          {[0, 1, 2].map((n) => (
+            <div className="skel" key={n}>
+              <i className="w6" />
+              <i className="w8" />
+              <i className="w4" />
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       {data ? (
         <>
@@ -192,7 +231,7 @@ export function Discover({ suggestion, onOpen }: { suggestion: string; onOpen: (
           ) : (
             <div className="note">
               Only verified companies appear, so the list grows as more are checked. Below 55, companies aren't shown as
-              matches. Saving and the pipeline arrive in a later step.
+              matches.
             </div>
           )}
         </>
@@ -250,7 +289,7 @@ export function ResultCard({
           <button type="button" className="mini dark" onClick={onOpen}>
             View profile →
           </button>
-          <SaveButton slug={r.slug} saved={r.saved} />
+          <SaveButton slug={r.slug} saved={r.saved} name={r.name} />
           <button type="button" className="mini" aria-expanded={open} onClick={onToggle}>
             {open ? "Hide details ▴" : "Show details ▾"}
           </button>
@@ -260,45 +299,47 @@ export function ResultCard({
         </div>
       </div>
       {open ? (
-        <div className="ddetail">
-          <div>
-            <h3>Why it fits · Rightroom's estimate</h3>
-            {r.fit.factors.map((f) => (
-              <div className="factor" key={f.factor}>
-                <span>{f.label}</span>
-                <span className="dots" role="img" aria-label={`${f.score} out of 5`}>
-                  {"●".repeat(f.score)}
-                  <i>{"●".repeat(5 - f.score)}</i>
-                </span>
-                <span className="r">{f.reason}</span>
-              </div>
-            ))}
-            <p className="disclaimer">
-              A score shows research-based fit. It is not a promise of a reply or a partnership.
-            </p>
-          </div>
-          <div>
-            <h3>Verified signals</h3>
-            {r.signals.length === 0 ? <p className="dmeta">None yet. This company's website was verified.</p> : null}
-            {r.signals.map((s) => (
-              <div className="sig" key={`${s.type}-${s.title}`}>
-                <div className="t">
-                  <span className="ver">✓</span> {s.type_label}
-                  {s.event_date ? ` · ${day(s.event_date)}` : ""}
+        <div className="dexpand">
+          <div className="ddetail">
+            <div>
+              <h3>Why it fits · Rightroom's estimate</h3>
+              {r.fit.factors.map((f) => (
+                <div className="factor" key={f.factor}>
+                  <span>{f.label}</span>
+                  <span className="dots" role="img" aria-label={`${f.score} out of 5`}>
+                    {"●".repeat(f.score)}
+                    <i>{"●".repeat(5 - f.score)}</i>
+                  </span>
+                  <span className="r">{f.reason}</span>
                 </div>
-                <div>{s.claim}</div>
-                <blockquote>“{s.excerpt}”</blockquote>
-                {s.sources
-                  .filter((src) => src.role === "primary")
-                  .map((src) => (
-                    <a key={src.url} href={safeHref(src.url)} target="_blank" rel="noopener noreferrer">
-                      {src.url.replace(/^https?:\/\/(www\.)?/, "").slice(0, 60)} ↗
-                    </a>
-                  ))}{" "}
-                <span className="dmeta">· checked {day(s.last_verified_at)}</span>
-              </div>
-            ))}
-            {r.description ? <p className="dmeta">About: {r.description}</p> : null}
+              ))}
+              <p className="disclaimer">
+                A score shows research-based fit. It is not a promise of a reply or a partnership.
+              </p>
+            </div>
+            <div>
+              <h3>Verified signals</h3>
+              {r.signals.length === 0 ? <p className="dmeta">None yet. This company's website was verified.</p> : null}
+              {r.signals.map((s) => (
+                <div className="sig" key={`${s.type}-${s.title}`}>
+                  <div className="t">
+                    <span className="ver">✓</span> {s.type_label}
+                    {s.event_date ? ` · ${day(s.event_date)}` : ""}
+                  </div>
+                  <div>{s.claim}</div>
+                  <blockquote>“{s.excerpt}”</blockquote>
+                  {s.sources
+                    .filter((src) => src.role === "primary")
+                    .map((src) => (
+                      <a key={src.url} href={safeHref(src.url)} target="_blank" rel="noopener noreferrer">
+                        {src.url.replace(/^https?:\/\/(www\.)?/, "").slice(0, 60)} ↗
+                      </a>
+                    ))}{" "}
+                  <span className="dmeta">· checked {day(s.last_verified_at)}</span>
+                </div>
+              ))}
+              {r.description ? <p className="dmeta">About: {r.description}</p> : null}
+            </div>
           </div>
         </div>
       ) : null}
@@ -313,13 +354,26 @@ const STAGE_NAMES: Record<string, string> = {
   partnered: "Partnered",
 };
 
-export function SaveButton({ slug, saved }: { slug: string; saved: { id: string; stage: string } | null }) {
+export function SaveButton({
+  slug,
+  saved,
+  name,
+}: {
+  slug: string;
+  saved: { id: string; stage: string } | null;
+  name?: string;
+}) {
   const [state, setState] = useState(saved);
   const [busy, setBusy] = useState(false);
+  const [popped, setPopped] = useState(false);
+  const toast = useToast();
   if (state) {
     return (
-      <span className="mini saved-on" title="In your pipeline">
-        ★ {STAGE_NAMES[state.stage] ?? "Saved"}
+      <span className={popped ? "mini saved-on pop" : "mini saved-on"} title="In your pipeline">
+        <span className="star" aria-hidden="true">
+          ★
+        </span>{" "}
+        {STAGE_NAMES[state.stage] ?? "Saved"}
       </span>
     );
   }
@@ -332,7 +386,19 @@ export function SaveButton({ slug, saved }: { slug: string; saved: { id: string;
         setBusy(true);
         try {
           const r = await pipeline.save(slug);
+          setPopped(true);
           setState(r.saved);
+          announceSavedChange();
+          toast(`${name ? `${name} saved` : "Saved"} to ${STAGE_NAMES[r.saved.stage] ?? "your pipeline"}`, {
+            undo: async () => {
+              await pipeline.remove(r.saved.id);
+              setPopped(false);
+              setState(null);
+              announceSavedChange();
+            },
+          });
+        } catch (err) {
+          toast(err instanceof Error ? err.message : "Couldn't save. Please try again.");
         } finally {
           setBusy(false);
         }

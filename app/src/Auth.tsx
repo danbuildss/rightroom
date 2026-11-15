@@ -55,6 +55,16 @@ function AuthFlow({ onSignedIn, logoutFirst }: { onSignedIn: (view: View) => voi
   const [error, setError] = useState("");
   const [clearing, setClearing] = useState(logoutFirst || needsPrivyLogout());
   const exchanging = useRef(false);
+  // The token can take a moment after sign-in; only explain a missing one if it still hasn't arrived.
+  const [tokenLate, setTokenLate] = useState(false);
+  useEffect(() => {
+    if (!ready || !authenticated || identityToken) {
+      setTokenLate(false);
+      return;
+    }
+    const t = setTimeout(() => setTokenLate(true), 4000);
+    return () => clearTimeout(t);
+  }, [ready, authenticated, identityToken]);
 
   // After "Sign out" or "Delete account": end Privy's session too, before anything else.
   useEffect(() => {
@@ -106,10 +116,10 @@ function AuthFlow({ onSignedIn, logoutFirst }: { onSignedIn: (view: View) => voi
       return (
         <Screen>
           <div className="loading">Checking your invite…</div>
-          {ready && authenticated && !identityToken ? (
+          {tokenLate && !identityToken ? (
             <p className="err">
-              Sign-in worked, but Rightroom couldn't confirm who you are yet. Refresh the page; if it keeps happening,
-              tell us.
+              You're signed in, but the sign-in service didn't send Rightroom the identity token it needs to check your
+              invite. This is a setup issue on our side, not your account. Please try again later.
             </p>
           ) : null}
         </Screen>

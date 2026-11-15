@@ -1,12 +1,37 @@
-# Talo — Build Plan
+# Rightroom — Build Plan
 
-> **talo.** Find companies worth building with. *The intelligence behind better partnerships.*
+> **rightroom** Partnership intelligence for founders. *Get in the right room.*
 
-This is the plan everything is built from. It is derived from the *Talo Master Product, Business & Engineering Blueprint v1.0* and the *Product Direction Update v1.1* (November 2026). Where other notes disagree, this file wins. Changes to it go through the normal loop: sketch, approve, PR.
+The product began under the working name **Talo**; it is now **Rightroom** (chosen 2026-11-14). Older sections still say "Talo" where they describe earlier phases; read it as Rightroom. The repo keeps its original name.
+
+This is the plan everything is built from. It is derived from the *Talo Master Product, Business & Engineering Blueprint v1.0*, the *Product Direction Update v1.1* and the *Rightroom Product UI & Design Direction* (November 2026). Where other notes disagree, this file wins. Changes to it go through the normal loop: sketch, approve, PR.
 
 ---
 
 ## 1. Product direction
+
+### Direction update v1.2: the Rightroom founder workspace (approved 2026-11-15)
+Rightroom is a **discovery-first workspace for founders**, not a chat box. A founder describes the partner they need, gets a short ranked list with reasons, opens a company to see four answers (who they are, why partner, who decides, best approach), drafts an introduction they send themselves, and tracks it in Saved and Pipeline. Inspiration for workflow only: Frontrun (signals), Clay (enrichment), Crossbeam (partner workflow). We never copy their design or copy.
+
+Three surfaces:
+1. **Marketing site** (public): what Rightroom does, how it works, how we verify, Request access.
+2. **Founder app** (invite-only): onboarding, Discover, Company intelligence, draft introduction, Saved + Pipeline.
+3. **Back office** (Dan only): verification queue, inbox from the collector, access requests and invitations, sources and spend.
+
+Decisions:
+- **A. Access:** invite-only pilot; founders sign in with Google once invited. Request access on the site; Dan invites.
+- **B. Free start:** searches are turned into filters by rules, not AI. Fit uses the fixed formula (§5): **Strong fit ≥ 75, Potential fit 55–74**, below that not shown as a match. Evidence confidence (High/Medium/Low) is shown separately. Explanations are curated. AI comes later, behind a spending cap (§9).
+- **C. Contacts:** the role that owns partnerships, the company's official channels, and a named person **only** when a public source shows them, with the last-checked date and a confidence label. No guessed emails, no LinkedIn scraping.
+
+Build order (each step mocked up first, then one PR):
+1. Marketing site with Request access (2026-11-15).
+2. Back office: batch approve, review with the suggested sentence, collector inbox, access requests and invitations, sources and spend.
+3. Google sign-in and onboarding (company, goals).
+4. Discover.
+5. Company intelligence (the four questions).
+6. Draft introduction (never sent by Rightroom).
+7. Saved and Pipeline (Kanban).
+Then the signal digest (Phase 4b).
 
 ### Direction update v1.1 (approved 2026-11-14)
 Talo is a **partnership discovery and intelligence platform**, not only a report generator. Reference: Frontrun (frontrun.vc) helps investors discover startups early; **Talo helps companies discover partnership opportunities early.** We learn from its signal-first, come-back-often model; we don't copy its design, branding, data methods or investor focus.
@@ -243,7 +268,7 @@ Claude prepares intake forms, briefs and DM drafts; Dan does all outreach.
 **Done when:** a customer pays, or we have concrete evidence of why they won't.
 
 ### Status
-Phases 0 and 1 are done (PRs #1–#4). The back-end foundation (Worker, database, admin login) is done (PR #5). Phase 2 (Client Zero, the paid service) continues alongside the build.
+Phases 0 and 1 are done (PRs #1–#4). The back-end foundation (Worker, database, admin login) is done (PR #5). Phase 3 (data, curation, collector, public API) is built and deployed. Phase 2 (Client Zero, the paid service) continues alongside the build. From 2026-11-15 the screens follow the v1.2 build order in §1.
 
 ### Phase 3 — Talo Data (back end, $0)
 The shared company and signal database, with curation tools. One PR each:

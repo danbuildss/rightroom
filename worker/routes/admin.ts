@@ -4,9 +4,11 @@
  */
 import { type Context, Hono } from "hono";
 import { z } from "zod";
+import { ACCESS_STATUSES, accessReviewSchema } from "../../shared/access.ts";
 import { ALIAS_KINDS, COMPANY_STATUSES } from "../../shared/registry.ts";
 import { companyPatchSchema, registryFileSchema, signalPatchSchema } from "../../shared/registry-file.ts";
 import { REVIEW_STATUSES, reviewInputSchema, SIGNAL_TYPE_SLUGS } from "../../shared/signals.ts";
+import { listAccessRequests, reviewAccessRequest } from "../db/access.ts";
 import { auditData } from "../db/audit.ts";
 import { addAlias, DuplicateCompanyError, getCompany, listCompanies, mergeCompanies } from "../db/companies.ts";
 import { ImportRejectedError, importRegistryFile, reviewQueue, updateCompany, updateSignal } from "../db/curation.ts";
@@ -62,6 +64,12 @@ const signalQuery = z.object({
   company_id: z.string().max(60).optional(),
   category: z.string().max(60).optional(),
   ...pageQuery,
+});
+
+const accessQuery = z.object({
+  status: z.enum(ACCESS_STATUSES).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+  offset: z.coerce.number().int().min(0).max(10_000).optional(),
 });
 
 export const admin = new Hono<AppEnv>()
@@ -180,6 +188,22 @@ export const admin = new Hono<AppEnv>()
     try {
       const status = await reviewSignal(c.env.DB, c.req.param("id"), review, c.get("adminEmail"));
       return c.json({ status });
+    } catch (err) {
+      return fail(c, err);
+    }
+  })
+
+  // Request access submissions from the marketing site. Dan invites people; nothing is emailed from here.
+  .get("/access-requests", async (c) => {
+    const q = accessQuery.safeParse(c.req.query());
+    if (!q.success) return jsonError(c, 400, "invalid_request", "Invalid filters.");
+    return c.json({ requests: await listAccessRequests(c.env.DB, q.data) });
+  })
+  .patch("/access-requests/:id", async (c) => {
+    const review = await body(c, accessReviewSchema);
+    if (review instanceof Response) return review;
+    try {
+      return c.json({ request: await reviewAccessRequest(c.env.DB, c.req.param("id"), review) });
     } catch (err) {
       return fail(c, err);
     }

@@ -6,6 +6,7 @@ import { type Context, Hono } from "hono";
 import { z } from "zod";
 import { ACCESS_STATUSES, accessReviewSchema, directInviteSchema } from "../../shared/access.ts";
 import { contactInputSchema, contactReviewSchema } from "../../shared/contacts.ts";
+import { PROFILE_STATUSES } from "../../shared/profile.ts";
 import { ALIAS_KINDS, COMPANY_STATUSES } from "../../shared/registry.ts";
 import { companyPatchSchema, registryFileSchema, signalPatchSchema } from "../../shared/registry-file.ts";
 import {
@@ -17,7 +18,14 @@ import {
 } from "../../shared/signals.ts";
 import { inviteDirectly, listAccessRequests, reviewAccessRequest } from "../db/access.ts";
 import { auditData } from "../db/audit.ts";
-import { addAlias, DuplicateCompanyError, getCompany, listCompanies, mergeCompanies } from "../db/companies.ts";
+import {
+  addAlias,
+  confirmProfiles,
+  DuplicateCompanyError,
+  getCompany,
+  listCompanies,
+  mergeCompanies,
+} from "../db/companies.ts";
 import { addContact, listContacts, reviewContact } from "../db/contacts.ts";
 import { ImportRejectedError, importRegistryFile, reviewQueue, updateCompany, updateSignal } from "../db/curation.ts";
 import { companyEvidence, signalEvidence } from "../db/evidence.ts";
@@ -66,8 +74,10 @@ const companyQuery = z.object({
   q: z.string().trim().max(200).optional(),
   category: z.string().max(60).optional(),
   status: z.enum(COMPANY_STATUSES).optional(),
+  profile: z.enum(PROFILE_STATUSES).optional(),
   ...pageQuery,
 });
+const confirmProfilesSchema = z.strictObject({ ids: z.array(z.string().min(1).max(64)).min(1).max(200) });
 const signalQuery = z.object({
   status: z.enum(REVIEW_STATUSES).optional(),
   type: z.enum(SIGNAL_TYPE_SLUGS).optional(),
@@ -158,6 +168,12 @@ export const admin = new Hono<AppEnv>()
   .get("/audit", async (c) => c.json(await auditData(c.env.DB)))
 
   // Companies
+  // Confirm several pre-filled profiles at once, exactly as suggested.
+  .post("/companies/profiles/confirm", async (c) => {
+    const input = await body(c, confirmProfilesSchema);
+    if (input instanceof Response) return input;
+    return c.json({ confirmed: await confirmProfiles(c.env.DB, input.ids, c.get("adminEmail")) });
+  })
   .get("/companies", async (c) => {
     const q = companyQuery.safeParse(c.req.query());
     if (!q.success) return jsonError(c, 400, "invalid_request", "Invalid filters.");

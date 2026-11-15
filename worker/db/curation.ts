@@ -197,6 +197,22 @@ export async function updateCompany(
       );
     }
   }
+  const profile: [string, unknown][] = [];
+  if (patch.org_type !== undefined) profile.push(["org_type", patch.org_type]);
+  if (patch.hq_country !== undefined) profile.push(["hq_country", patch.hq_country]);
+  if (patch.stage !== undefined) profile.push(["stage", patch.stage]);
+  if (patch.audiences !== undefined) profile.push(["audiences_json", JSON.stringify(patch.audiences)]);
+  if (profile.length || patch.confirm_profile) {
+    // Rightroom's own labels: saving or confirming them marks the profile confirmed, without reopening review.
+    statements.push(
+      db
+        .prepare(
+          `UPDATE companies SET ${profile.map(([k]) => `${k} = ?`).join(", ")}${profile.length ? ", " : ""}
+           profile_status = 'confirmed', profile_confirmed_at = ?, profile_confirmed_by = ? WHERE id = ?`,
+        )
+        .bind(...profile.map(([, v]) => v), at, editor, id),
+    );
+  }
   const reopened = row.status === "verified" && factFields.length > 0;
   if (reopened) {
     statements.push(db.prepare("UPDATE companies SET status = 'needs_review' WHERE id = ?").bind(id));

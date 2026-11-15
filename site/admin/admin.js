@@ -727,25 +727,103 @@ views.sources = async (view) => {
   };
 };
 
-// ---------- Companies: contacts and channels ----------
+// ---------- Companies: profile (Explore labels), contacts and channels ----------
+// Keep in step with shared/profile.ts.
+const ORG_TYPES = [
+  ["startup_product", "Startups & Products"],
+  ["platform_api", "Platforms & APIs"],
+  ["ecosystem", "Ecosystems"],
+  ["distribution", "Distribution"],
+  ["community_media", "Communities & Media"],
+  ["accelerator_program", "Accelerators & Programs"],
+];
+const STAGES = [
+  ["early", "Early stage"],
+  ["growth", "Growth"],
+  ["established", "Established"],
+];
+const AUDIENCES = [
+  ["b2b", "B2B"],
+  ["b2c", "Consumers"],
+  ["developers", "Developers"],
+];
+const nameOf = (list, k) => list.find((x) => x[0] === k)?.[1] ?? "";
+const profileLine = (c) =>
+  [nameOf(ORG_TYPES, c.org_type), c.hq_country, nameOf(STAGES, c.stage), c.audiences.map((a) => nameOf(AUDIENCES, a)).join(", ")]
+    .filter(Boolean)
+    .join(" · ");
+const PROFILE_PILL = {
+  empty: `<span class="pill grey">No profile</span>`,
+  suggested: `<span class="pill warn">Suggested: confirm</span>`,
+  confirmed: `<span class="pill ok">Profile confirmed</span>`,
+};
+
 views.companies = async (view) => {
   let q = "";
+  let mode = "all";
+  let shown = [];
   const render = async () => {
-    const { companies } = await api("GET", `/companies?status=verified&limit=200${q ? `&q=${encodeURIComponent(q)}` : ""}`);
-    view.innerHTML = `${header("Companies", "Verified companies. Add who to contact: named people only with a public source page, and official channels. Founders see a contact only after you approve it.")}
+    const base = `/companies?status=verified&limit=200${q ? `&q=${encodeURIComponent(q)}` : ""}`;
+    const [{ companies }, { companies: toConfirm }] = await Promise.all([
+      api("GET", mode === "suggested" ? `${base}&profile=suggested` : base),
+      api("GET", "/companies?status=verified&profile=suggested&limit=200"),
+    ]);
+    shown = companies;
+    view.innerHTML = `${header("Companies", "Verified companies. Set each one's profile (type, location, stage, audience) for Explore, and add who to contact: named people only with a public source page, and official channels. Founders see a profile or contact only after you confirm it.")}
+      <div class="toolbar"><div class="tabs" role="group" aria-label="Show companies">
+        <button class="tab${mode === "all" ? " on" : ""}" type="button" data-mode="all" aria-pressed="${mode === "all"}">All</button>
+        <button class="tab${mode === "suggested" ? " on" : ""}" type="button" data-mode="suggested" aria-pressed="${mode === "suggested"}">Profiles to confirm ${toConfirm.length}</button>
+      </div></div>
       <form class="toolbar" id="co-search"><input name="q" placeholder="Search companies" value="${esc(q)}" maxlength="100"><button class="btn sm" type="submit">Search</button></form>
-      ${companies.length ? "" : `<div class="empty"><b>No verified companies match</b>Verify companies in Review first.</div>`}
+      ${mode === "suggested" && companies.length ? `<div class="toolbar"><span class="meta">Check the suggestions below first.</span><button class="btn sm blue" type="button" data-confirm-all>✓ Confirm all ${companies.length} as suggested</button></div>` : ""}
+      ${mode === "suggested" ? `<p class="help">These were pre-filled from each company's verified description and sectors. Location is left for you. Check them, fix any that are wrong with Profile ▾, then confirm.</p>` : ""}
+      ${companies.length ? "" : `<div class="empty"><b>${mode === "suggested" ? "Nothing to confirm" : "No verified companies match"}</b>${mode === "suggested" ? "Every suggested profile is confirmed." : "Verify companies in Review first."}</div>`}
       ${companies
         .map(
           (c) => `<article class="item" data-id="${esc(c.id)}">
-        <div class="ih"><div class="grow"><div class="title">${esc(c.name)}</div><div class="meta">${link(`https://${c.primary_domain}`, c.primary_domain)}${c.is_sample ? " · sample" : ""}</div></div>
-        <button class="btn sm" type="button" data-contacts aria-expanded="false">Contacts ▾</button></div>
+        <div class="ih co-ih"><div class="grow"><div class="title">${esc(c.name)} ${PROFILE_PILL[c.profile_status] ?? ""}</div><div class="meta">${link(`https://${c.primary_domain}`, c.primary_domain)}${c.is_sample ? " · sample" : ""}${profileLine(c) ? ` · ${esc(profileLine(c))}` : ""}</div></div>
+        <div class="row-actions">${c.profile_status === "suggested" ? `<button class="btn sm blue" type="button" data-confirm>✓ Confirm</button>` : ""}<button class="btn sm" type="button" data-profile aria-expanded="false">Profile ▾</button><button class="btn sm" type="button" data-contacts aria-expanded="false">Contacts ▾</button></div></div>
+        <div class="ib pad-b" data-ppanel hidden></div>
         <div class="ib pad-b" data-panel hidden></div>
       </article>`,
         )
         .join("")}`;
   };
   await render();
+
+  const profilePanel = (card) => {
+    const c = shown.find((x) => x.id === card.dataset.id);
+    const box = $("[data-ppanel]", card);
+    box.hidden = false;
+    const opts = (list, v, none) =>
+      `<option value="">${none}</option>${list.map(([k, l]) => `<option value="${k}"${k === v ? " selected" : ""}>${l}</option>`).join("")}`;
+    box.innerHTML = `<form class="inline-form flat" data-pform>
+      <div class="form-grid">
+        <div><label>Type (Explore category)<select name="org_type">${opts(ORG_TYPES, c.org_type, "Not set")}</select></label></div>
+        <div><label>Headquarters country<input name="hq_country" maxlength="2" placeholder="US, NG, GB" value="${esc(c.hq_country ?? "")}"></label><p class="help">Two-letter code. Leave empty if you haven't checked it.</p></div>
+        <div><label>Stage<select name="stage">${opts(STAGES, c.stage, "Not set")}</select></label></div>
+        <div><fieldset class="checks"><legend>Sells to</legend>${AUDIENCES.map(([k, l]) => `<label class="check"><input type="checkbox" name="aud" value="${k}"${c.audiences.includes(k) ? " checked" : ""}> ${l}</label>`).join("")}</fieldset></div>
+      </div>
+      <button class="btn sm dark" type="submit">Save and confirm</button>
+    </form>`;
+    $("[data-pform]", box).addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const f = e.target;
+      const country = f.hq_country.value.trim();
+      try {
+        await api("PATCH", `/companies/${encodeURIComponent(c.id)}`, {
+          org_type: f.org_type.value || null,
+          hq_country: country || null,
+          stage: f.stage.value || null,
+          audiences: [...f.querySelectorAll("[name=aud]:checked")].map((x) => x.value),
+        });
+        toast("Profile saved. Founders see it in Explore.");
+        await render();
+      } catch (err) {
+        if (err.status !== 401) toast(err.message, { bad: true });
+      }
+    });
+  };
 
   const panel = async (card) => {
     const id = card.dataset.id;
@@ -804,7 +882,27 @@ views.companies = async (view) => {
     const t = e.target;
     const card = t.closest(".item");
     try {
-      if (t.closest("[data-contacts]") && card) {
+      if (t.closest("[data-mode]")) {
+        mode = t.closest("[data-mode]").dataset.mode;
+        await render();
+      } else if (t.closest("[data-confirm-all]")) {
+        const ids = shown.filter((c) => c.profile_status === "suggested").map((c) => c.id);
+        if (!window.confirm(`Confirm ${ids.length} profiles exactly as suggested?`)) return;
+        const { confirmed } = await api("POST", "/companies/profiles/confirm", { ids });
+        toast(`${confirmed} profiles confirmed.`);
+        await render();
+      } else if (t.closest("[data-confirm]") && card) {
+        await api("POST", "/companies/profiles/confirm", { ids: [card.dataset.id] });
+        toast("Profile confirmed.");
+        await render();
+      } else if (t.closest("[data-profile]") && card) {
+        const b = t.closest("[data-profile]");
+        const open = b.getAttribute("aria-expanded") === "true";
+        b.setAttribute("aria-expanded", String(!open));
+        b.textContent = open ? "Profile ▾" : "Hide profile ▴";
+        if (open) $("[data-ppanel]", card).hidden = true;
+        else profilePanel(card);
+      } else if (t.closest("[data-contacts]") && card) {
         const b = t.closest("[data-contacts]");
         const open = b.getAttribute("aria-expanded") === "true";
         b.setAttribute("aria-expanded", String(!open));

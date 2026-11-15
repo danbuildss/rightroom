@@ -10,6 +10,25 @@ This is the plan everything is built from. It is derived from the *Talo Master P
 
 ## 1. Product direction
 
+### Direction update v1.3: Explore, Home and the partnership ecosystem (approved 2026-11-15)
+Rightroom becomes a place to **explore** partnerships, not only a search box. The journey: **Explore → Evaluate → Connect → Manage.** A founder can arrive without a company in mind, browse the ecosystem, open a company, understand the opportunity for both sides, find the right contact, and track the relationship.
+
+Navigation (founder app): **Home** (follow-ups due, new verified signals, recently added companies, top matches), **Explore** (core: browse every verified company), **Discover** (personal, ranked matches with reasons), **Saved**, **Pipeline**, then **Your company** and **Account & settings**. A bell shows only real events (follow-ups due, new verified signals on saved companies).
+
+Explore:
+- Shows **all verified companies**, whatever their fit for this founder. Discover stays personal and never hides the wider database.
+- **Category tiles** come from each company's type: Startups & Products, Platforms & APIs, Ecosystems, Distribution, Communities & Media, Accelerators & Programs. A tile appears only when at least one company has that type.
+- **Filters:** sector, location, partner goal (from verified signals), stage. A filter appears only when companies have that data.
+- **Cards** answer "what could I do with this company?": initials (no third-party logos), sector and audience, description, partnership types from verified signals, and a possible partnership angle labelled as our suggestion.
+
+Company profile (type, headquarters country, stage, audience) is **Rightroom's own label**, set or confirmed by Dan. Imported or pre-filled values are suggestions, hidden from founders until confirmed. Changing a profile never reopens review. People stay inside company profiles; there is no directory of individuals.
+
+**No overlap, no fit.** A company that shares no sector, technology or keyword with the founder can't be labelled Strong or Potential fit, however open it is to partners (readiness and contact describe the company, not the match). The formula and weights (§5) are unchanged.
+
+Not now: leaderboard (only with defensible measures), chat and introductions (only when companies opt into a network), a notifications page, opt-in partnership profiles for other users (needs a privacy update and enough members). Frontrun and similar tools are workflow references only; we keep Rightroom's light brand.
+
+Build order (each mocked up first, then one PR): 1. plan, company profile and the overlap rule; 2. Explore; 3. navigation and Home; 4. Discover and company profiles.
+
 ### Direction update v1.2: the Rightroom founder workspace (approved 2026-11-15)
 Rightroom is a **discovery-first workspace for founders**, not a chat box. A founder describes the partner they need, gets a short ranked list with reasons, opens a company to see four answers (who they are, why partner, who decides, best approach), drafts an introduction they send themselves, and tracks it in Saved and Pipeline. Inspiration for workflow only: Frontrun (signals), Clay (enrichment), Crossbeam (partner workflow). We never copy their design or copy.
 
@@ -20,7 +39,7 @@ Three surfaces:
 
 Decisions:
 - **A. Access:** invite-only pilot; founders sign in with Google once invited. Request access on the site; Dan invites.
-- **B. Free start:** searches are turned into filters by rules, not AI. Fit uses the fixed formula (§5): **Strong fit ≥ 75, Potential fit 55–74**, below that not shown as a match. Evidence confidence (High/Medium/Low) is shown separately. Explanations are curated. AI comes later, behind a spending cap (§9).
+- **B. Free start:** searches are turned into filters by rules, not AI. Fit uses the fixed formula (§5): **Strong fit ≥ 75, Potential fit 55–74**, below that not shown as a match. A company with no sector, technology or keyword in common with the founder is never labelled a fit (v1.3). Evidence confidence (High/Medium/Low) is shown separately. Explanations are curated. AI comes later, behind a spending cap (§9).
 - **C. Contacts:** the role that owns partnerships, the company's official channels, and a named person **only** when a public source shows them, with the last-checked date and a confidence label. No guessed emails, no LinkedIn scraping.
 
 Build order (each step mocked up first, then one PR):

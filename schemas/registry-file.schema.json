@@ -126,6 +126,62 @@
           "is_sample": {
             "default": false,
             "type": "boolean"
+          },
+          "org_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "startup_product",
+                  "platform_api",
+                  "ecosystem",
+                  "distribution",
+                  "community_media",
+                  "accelerator_program"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hq_country": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z]{2}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "early",
+                  "growth",
+                  "established"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "audiences": {
+            "maxItems": 3,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "b2b",
+                "b2c",
+                "developers"
+              ]
+            }
           }
         },
         "required": [

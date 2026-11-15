@@ -175,3 +175,9 @@ a.btn{text-decoration:none}
 .pad-b{padding-bottom:16px}
 .item .ih{padding-bottom:16px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+/* Company profile form */
+.checks{border:0;margin:0;padding:0;display:flex;gap:6px 14px;flex-wrap:wrap}
+.checks legend{font-size:13px;font-weight:600;margin-bottom:6px;padding:0}
+.check{display:inline-flex;align-items:center;gap:6px;font-weight:400}
+.check input{width:auto;margin:0}
+@media (max-width:820px){.co-ih{flex-direction:column;gap:10px}.co-ih .grow{width:100%}}

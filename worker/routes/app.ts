@@ -11,8 +11,9 @@ import { bodyLimit } from "hono/body-limit";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import type { JWTVerifyGetKey } from "jose";
 import { z } from "zod";
-import { profileUpdateSchema } from "../../shared/founder.ts";
+import { GOALS, profileUpdateSchema } from "../../shared/founder.ts";
 import { isInvited, submitAccessRequest, TooManyRequestsError } from "../db/access.ts";
+import { discover } from "../db/discover.ts";
 import {
   createSession,
   deleteFounderWorkspace,
@@ -31,6 +32,26 @@ import { PrivyTokenError, verifyIdentityToken } from "../privy.ts";
 export const SESSION_COOKIE = "__Host-rr_session";
 
 const tokenSchema = z.object({ identity_token: z.string().min(20).max(20_000) });
+const list = (max: number) =>
+  z
+    .string()
+    .max(500)
+    .transform((s) =>
+      s
+        .split(",")
+        .map((x) => x.trim())
+        .filter(Boolean)
+        .slice(0, max),
+    );
+const discoverQuery = z.object({
+  q: z.string().max(500).default(""),
+  cats: list(20).optional(),
+  goals: list(4)
+    .pipe(z.array(z.enum(GOALS)))
+    .optional(),
+  category: z.string().max(60).optional(),
+});
+
 const requestSchema = tokenSchema.extend({
   goal: z.string().trim().min(10, "Tell us a little more about the partnership you're after.").max(1000),
   website: z.string().trim().max(300).optional(),
@@ -142,6 +163,20 @@ export function founderApp(options: FounderAppOptions = {}) {
       .get("/me", requireFounder, async (c) => {
         const view = await getFounderView(c.env.DB, c.get("founder").workspace_id);
         return view ? c.json(view) : jsonError(c, 401, "unauthenticated", "Please sign in.");
+      })
+
+      // Ranked verified companies for this founder (rule-based, no AI).
+      .get("/discover", requireFounder, async (c) => {
+        const q = discoverQuery.safeParse(c.req.query());
+        if (!q.success) return jsonError(c, 400, "invalid_request", "Invalid search.");
+        return c.json(
+          await discover(c.env.DB, c.get("founder").workspace_id, {
+            q: q.data.q,
+            categories: q.data.cats,
+            goals: q.data.goals,
+            category: q.data.category,
+          }),
+        );
       })
 
       .put("/profile", requireFounder, async (c) => {

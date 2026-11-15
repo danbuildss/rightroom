@@ -7,7 +7,8 @@
  * Everything is added as needs_review with the page it came from; founders see a contact only after
  * Dan approves it. Never a guessed email.
  */
-import { extractPeople, teamPages } from "../../shared/people.ts";
+import { EXTERNAL, extractPeople, teamPages } from "../../shared/people.ts";
+import { type AiEnv, AiOffError, aiPeople } from "./ai.ts";
 import { USER_AGENT } from "./collector.ts";
 import { addContact } from "./contacts.ts";
 import { NotFoundError, nowIso } from "./util.ts";
@@ -56,7 +57,11 @@ export async function suggestContact(
   return true;
 }
 
-export async function findContacts(db: D1Database, companyId: string, opts: { fetcher?: typeof fetch } = {}) {
+export async function findContacts(
+  db: D1Database,
+  companyId: string,
+  opts: { fetcher?: typeof fetch; env?: AiEnv } = {},
+) {
   const fetcher = opts.fetcher ?? fetch;
   const co = await db
     .prepare("SELECT id, name, primary_domain AS domain FROM companies WHERE id = ?")
@@ -71,7 +76,27 @@ export async function findContacts(db: D1Database, companyId: string, opts: { fe
     const p = await page(fetcher, url);
     if (p) pages.push(p);
   }
+  // With the AI helpers on, the AI also reads each page (names must appear on the page; investors left out).
+  const aiOn = Boolean(opts.env?.BANKR_LLM_KEY);
   for (const p of pages) {
+    if (aiOn && opts.env) {
+      try {
+        for (const person of await aiPeople(db, opts.env, co, p.html, fetcher)) {
+          if (EXTERNAL.test(person.role)) continue;
+          if (
+            await suggestContact(
+              db,
+              co.id,
+              { kind: "person", ...person, source_url: p.url, confidence: "high" },
+              "ai-website-reader",
+            )
+          )
+            added += 1;
+        }
+      } catch (err) {
+        if (!(err instanceof AiOffError)) console.log(`contacts AI: ${err instanceof Error ? err.message : "failed"}`);
+      }
+    }
     for (const person of extractPeople(p.html, co.name)) {
       if (
         await suggestContact(
@@ -130,7 +155,10 @@ export async function findContacts(db: D1Database, companyId: string, opts: { fe
 }
 
 /** A few verified companies not looked at for contacts yet (or not for a month). */
-export async function findMissingContacts(db: D1Database, opts: { fetcher?: typeof fetch; limit?: number } = {}) {
+export async function findMissingContacts(
+  db: D1Database,
+  opts: { fetcher?: typeof fetch; limit?: number; env?: AiEnv } = {},
+) {
   const since = new Date(Date.now() - RECHECK_DAYS * 86_400_000).toISOString();
   const { results } = await db
     .prepare(

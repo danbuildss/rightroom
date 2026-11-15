@@ -17,6 +17,7 @@ import {
   SIGNAL_TYPES,
 } from "../../shared/signals.ts";
 import { inviteDirectly, listAccessRequests, reviewAccessRequest } from "../db/access.ts";
+import { aiCheckCandidate, aiCheckNewCandidates, aiStatus, askAi, listModels, setSetting } from "../db/ai.ts";
 import { auditData } from "../db/audit.ts";
 import {
   addAlias,
@@ -296,6 +297,44 @@ export const admin = new Hono<AppEnv>()
     await blockDetail(db, id, kind);
     return c.json({ ok: true });
   })
+  // AI helpers (Bankr LLM gateway): status, model list, choose a model, a tiny test, and checks.
+  .get("/ai", async (c) => c.json(await aiStatus(c.env.DB, c.env)))
+  .get("/ai/models", async (c) => {
+    try {
+      return c.json({ models: await listModels(c.env, c.get("fetcher")) });
+    } catch (err) {
+      return jsonError(c, 503, "not_configured", err instanceof Error ? err.message : "couldn't list models");
+    }
+  })
+  .post("/ai/model", async (c) => {
+    const input = await body(c, z.strictObject({ model: z.string().trim().min(1).max(120) }));
+    if (input instanceof Response) return input;
+    await setSetting(c.env.DB, "ai_model", input.model, c.get("adminEmail"));
+    return c.json(await aiStatus(c.env.DB, c.env));
+  })
+  .post("/ai/test", async (c) => {
+    try {
+      const text = await askAi(
+        c.env.DB,
+        c.env,
+        { purpose: "test", system: "Reply with JSON only.", user: 'Reply with {"ok": true}.', max_tokens: 20 },
+        c.get("fetcher"),
+      );
+      return c.json({ ok: true, answer: text.slice(0, 200) });
+    } catch (err) {
+      return jsonError(c, 503, "not_configured", err instanceof Error ? err.message : "failed");
+    }
+  })
+  .post("/candidates/ai-check", async (c) =>
+    c.json(await aiCheckNewCandidates(c.env.DB, c.env, { fetcher: c.get("fetcher"), limit: 5 })),
+  )
+  .post("/candidates/:id/ai-check", async (c) => {
+    try {
+      return c.json({ ai: await aiCheckCandidate(c.env.DB, c.env, c.req.param("id"), c.get("fetcher")) });
+    } catch (err) {
+      return jsonError(c, 503, "not_configured", err instanceof Error ? err.message : "failed");
+    }
+  })
   // Points of contact waiting for approval, found automatically; approve or reject in batches.
   .get("/contacts/pending", async (c) => c.json({ contacts: await pendingContacts(c.env.DB) }))
   .post("/contacts/review-batch", async (c) => {
@@ -323,11 +362,11 @@ export const admin = new Hono<AppEnv>()
     return c.json({ done });
   })
   .post("/contacts/find-missing", async (c) =>
-    c.json({ results: await findMissingContacts(c.env.DB, { fetcher: c.get("fetcher"), limit: 5 }) }),
+    c.json({ results: await findMissingContacts(c.env.DB, { fetcher: c.get("fetcher"), limit: 5, env: c.env }) }),
   )
   .post("/companies/:id/contacts/find", async (c) => {
     try {
-      return c.json(await findContacts(c.env.DB, c.req.param("id"), { fetcher: c.get("fetcher") }));
+      return c.json(await findContacts(c.env.DB, c.req.param("id"), { fetcher: c.get("fetcher"), env: c.env }));
     } catch (err) {
       return fail(c, err);
     }
@@ -355,6 +394,7 @@ export const admin = new Hono<AppEnv>()
     return c.json({
       results: await approveCandidates(c.env.DB, input.ids, c.get("adminEmail"), {
         fetcher: c.get("fetcher"),
+        env: c.env,
         names: input.names,
       }),
     });

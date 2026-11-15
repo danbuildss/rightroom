@@ -2,6 +2,17 @@
 
 Short records of technical decisions, newest first. Product decisions live in `PLAN.md`.
 
+## 2026-11-15: AI helpers through Dan's Bankr LLM gateway
+- **Approved by Dan (about 300 USD of Bankr credit).** Back office only, and only public website text is sent: never founders' profiles, drafts, notes or pipeline. The privacy policy says public pages may be processed by AI services and that workspace data isn't.
+- **The gateway:** OpenAI-compatible (`https://llm.bankr.bot/v1/chat/completions`, Bearer `BANKR_LLM_KEY`, a Cloudflare secret). Dan picks the model in Back office → AI helpers from Bankr's `/v1/models` list (`app_settings.ai_model`). It's off without both the key and a model.
+- **Spend:**
+  - every call is recorded in `ai_calls` (migration 0020), with tokens and an estimate based on `AI_PRICE_INPUT/OUTPUT_PER_M_USD` (defaults 3 and 15, cautious)
+  - no call starts once `AI_MONTHLY_CAP_USD` (default 20) would be passed
+- **What the AI helps with:**
+  - **New companies:** is it a real company or product team (or a blog, portfolio, list or library), plus name, one-liner, type, sectors from our list only, stage and audience. Stored on the candidate as a suggestion; approving uses it, and Dan's edits win. 5 candidates per hour, plus a button.
+  - **Contacts:** people who work at the company in useful roles, leaving out investors and advisors. **A name is kept only if it appears exactly in the page text,** so the AI can't invent anyone. Everything is still approved by Dan.
+- **What it never does:** set a fit score, verify anything on its own, or see client data.
+
 ## 2026-11-15: Engine tuning after Dan's first run
 - **Contacts:**
   - "Partner" on its own (as in "Partner at a fund") no longer counts as a partnerships role; it must be "Partnerships", "Partnership lead" and so on.

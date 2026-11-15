@@ -225,3 +225,6 @@ tr.on td{background:var(--blue-tint)}
 .gpost .row-actions{align-items:center}
 .gpost .grow{flex:1}
 .gkept{margin:4px 0 6px;padding-left:18px;font-size:13.5px}
+.aiv{border-radius:10px;padding:8px 10px;font-size:14px;margin:0 0 8px}
+.aiv.yes{background:var(--green-bg);color:#05603a}
+.aiv.no{background:var(--amber-bg);color:var(--amber-ink)}

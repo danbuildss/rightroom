@@ -20,6 +20,7 @@ import {
 } from "../../shared/discovery.ts";
 import { readHomepage } from "../../shared/enrich.ts";
 import { companyInputSchema } from "../../shared/registry.ts";
+import type { AiEnv } from "./ai.ts";
 import { type CollectorEnv, USER_AGENT } from "./collector.ts";
 import { confirmProfiles, createCompany, DuplicateCompanyError } from "./companies.ts";
 import { enrichCompany } from "./enrich.ts";
@@ -234,7 +235,8 @@ export async function listCandidates(db: D1Database, status: "new" | "approved" 
   const { results } = await db
     .prepare(
       `SELECT id, domain, name, found_via, found_url, found_title, found_at, site_name, site_description,
-         site_links_json, site_checked_at, site_note, suggested_categories_json, suggested_type, status, company_id
+         site_links_json, site_checked_at, site_note, suggested_categories_json, suggested_type, status, company_id,
+         ai_json, ai_checked_at
        FROM company_candidates WHERE status = ? ORDER BY site_checked_at IS NULL, created_at DESC LIMIT 200`,
     )
     .bind(status)
@@ -243,6 +245,7 @@ export async function listCandidates(db: D1Database, status: "new" | "approved" 
     ...r,
     site_links: JSON.parse(String(r.site_links_json ?? "{}")),
     suggested_categories: JSON.parse(String(r.suggested_categories_json ?? "[]")),
+    ai: r.ai_json ? JSON.parse(String(r.ai_json)) : null,
   }));
 }
 
@@ -254,7 +257,7 @@ export async function approveCandidates(
   db: D1Database,
   ids: string[],
   editor: string,
-  opts: { fetcher?: typeof fetch; names?: Record<string, string> } = {},
+  opts: { fetcher?: typeof fetch; names?: Record<string, string>; env?: AiEnv } = {},
 ) {
   const results: { id: string; ok: boolean; company_id?: string; error?: string }[] = [];
   for (const id of ids) {
@@ -266,19 +269,33 @@ export async function approveCandidates(
       results.push({ id, ok: false, error: "not a new candidate" });
       continue;
     }
-    const name = (opts.names?.[id] ?? c.site_name ?? c.name ?? c.domain ?? "").trim().slice(0, 200);
+    // The AI's read (if any) fills in name, description, type, sectors, stage and audience; Dan's edits win.
+    const ai = c.ai_json
+      ? (JSON.parse(c.ai_json) as {
+          name?: string | null;
+          one_liner?: string | null;
+          org_type?: string | null;
+          sectors?: string[];
+          stage?: string;
+          audiences?: string[];
+        })
+      : null;
+    const name = (opts.names?.[id] ?? ai?.name ?? c.site_name ?? c.name ?? c.domain ?? "").trim().slice(0, 200);
     const known = new Set(
       ((await db.prepare("SELECT slug FROM categories").all<{ slug: string }>()).results ?? []).map((r) => r.slug),
     );
-    const categories = (JSON.parse(c.suggested_categories_json ?? "[]") as string[]).filter((s) => known.has(s));
+    const categories = (
+      ai?.sectors?.length ? ai.sectors : (JSON.parse(c.suggested_categories_json ?? "[]") as string[])
+    ).filter((s) => known.has(s));
     try {
       const input = companyInputSchema.parse({
         name,
         domain: c.domain,
-        description: c.site_description ?? undefined,
+        description: ai?.one_liner ?? c.site_description ?? undefined,
         categories,
-        org_type: c.suggested_type ?? undefined,
-        stage: "early",
+        org_type: ai?.org_type ?? c.suggested_type ?? undefined,
+        stage: ai?.stage && ai.stage !== "unknown" ? ai.stage : "early",
+        audiences: ai?.audiences?.length ? ai.audiences : undefined,
         sources: [
           {
             url: c.found_url,
@@ -318,7 +335,7 @@ export async function approveCandidates(
     if (r.company_id) {
       await enrichCompany(db, r.company_id, { fetcher: opts.fetcher }).catch(() => undefined);
       await fetchLogo(db, r.company_id, { fetcher: opts.fetcher }).catch(() => undefined);
-      await findContacts(db, r.company_id, { fetcher: opts.fetcher }).catch(() => undefined);
+      await findContacts(db, r.company_id, { fetcher: opts.fetcher, env: opts.env }).catch(() => undefined);
     }
   return results;
 }

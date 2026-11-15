@@ -15,6 +15,7 @@ const SECTIONS = [
   ["companies", "Companies"],
   ["founders", "Founders"],
   ["grok", "Grok research"],
+  ["ai", "AI helpers"],
   ["spend", "Spend"],
 ];
 
@@ -1116,7 +1117,7 @@ views.candidates = async (view) => {
     const ready = list.filter((c) => c.site_checked_at);
     view.innerHTML = `${header("New companies", `${list.length} early-stage teams waiting · found every day on Show HN, new GitHub repos and in your Inbox. Approving one makes it a verified company (checked against its own website) with an "Early stage" profile; its links and logo fill in automatically.`)}
       <div class="toolbar">
-        <div class="row-actions"><button class="btn sm" type="button" data-find>Find new teams now</button><button class="btn sm" type="button" data-read>Read their websites (10)</button></div>
+        <div class="row-actions"><button class="btn sm" type="button" data-find>Find new teams now</button><button class="btn sm" type="button" data-read>Read their websites (10)</button><button class="btn sm" type="button" data-aicheck>Check with AI (5)</button><button class="btn sm" type="button" data-pickai>Select AI-recommended</button></div>
         <div class="row-actions">
           <label class="check"><input type="checkbox" data-all ${ready.length && ready.every((c) => picked.has(c.id)) ? "checked" : ""}> Select all ready (${ready.length})</label>
           <button class="btn sm blue" type="button" data-approve ${picked.size ? "" : "disabled"}>✓ Approve ${picked.size || ""}</button>
@@ -1129,14 +1130,15 @@ views.candidates = async (view) => {
         .map((c) => {
           const links = Object.entries(c.site_links || {});
           return `<article class="item cand${picked.has(c.id) ? " on" : ""}" data-id="${esc(c.id)}">
-          <div class="ih"><label class="pick"><input type="checkbox" data-pick ${picked.has(c.id) ? "checked" : ""} ${c.site_checked_at ? "" : "disabled"} aria-label="Select ${esc(c.site_name || c.name || c.domain)}"></label>
+          <div class="ih"><label class="pick"><input type="checkbox" data-pick ${picked.has(c.id) ? "checked" : ""} ${c.site_checked_at || c.ai ? "" : "disabled"} aria-label="Select ${esc(c.site_name || c.name || c.domain)}"></label>
             <div class="grow">
-              <input class="cname" data-name maxlength="200" value="${esc(c.site_name || c.name || c.domain)}" aria-label="Company name for ${esc(c.domain)}">
+              <input class="cname" data-name maxlength="200" value="${esc(c.ai?.name || c.site_name || c.name || c.domain)}" aria-label="Company name for ${esc(c.domain)}">
               <div class="meta">${link(`https://${c.domain}`, c.domain)} · found on ${link(c.found_url, VIA[c.found_via] ?? c.found_via)}${c.found_at ? ` · ${day(c.found_at)}` : ""}</div>
             </div>
             <span class="pill blue">${esc(TYPE_NAME[c.suggested_type] ?? "Startup")}</span>
           </div>
           <div class="ib">
+            ${c.ai ? `<p class="aiv ${c.ai.is_company ? "yes" : "no"}"><b>AI: ${c.ai.is_company ? "looks like a real company" : "probably not a company"}</b> · ${esc(c.ai.reason)}${c.ai.is_company ? `<br>${c.ai.name ? `<b>${esc(c.ai.name)}</b> · ` : ""}${c.ai.one_liner ? esc(c.ai.one_liner) : ""}${c.ai.org_type ? ` · ${esc(TYPE_NAME[c.ai.org_type] ?? c.ai.org_type)}` : ""}${c.ai.stage && c.ai.stage !== "unknown" ? ` · ${esc(c.ai.stage)}` : ""}${c.ai.sectors?.length ? ` · ${c.ai.sectors.map(esc).join(", ")}` : ""}` : ""}</p>` : ""}
             ${c.site_checked_at ? (c.site_description ? `<p>${esc(c.site_description)}</p>` : `<p class="meta">No description on their homepage${c.site_note ? `: ${esc(c.site_note)}` : "."}</p>`) : `<p class="meta">Website not read yet.</p>`}
             <p class="meta">Found as: “${esc(c.found_title)}”</p>
             ${links.length ? `<p class="meta">From their site: ${links.map(([k, v]) => (k === "email" ? esc(v) : link(v, k))).join(" · ")}</p>` : ""}
@@ -1168,6 +1170,14 @@ views.candidates = async (view) => {
         const added = r.sources.reduce((n, x) => n + x.added, 0);
         const errs = r.sources.filter((x) => x.error).map((x) => `${VIA[x.source] ?? x.source}: ${x.error}`);
         toast(`${added} new teams found${errs.length ? ` (${errs.join("; ")})` : ""}.`, { bad: errs.length > 0 });
+        await render();
+      } else if (t.closest("[data-aicheck]")) {
+        t.closest("[data-aicheck]").disabled = true;
+        const r = await api("POST", "/candidates/ai-check");
+        toast(r.errors.length ? `${r.checked} checked · ${r.errors[0]}` : `${r.checked} checked by AI.`, { bad: r.errors.length > 0 && !r.checked });
+        await render();
+      } else if (t.closest("[data-pickai]")) {
+        for (const c of list) if (c.ai?.is_company) picked.add(c.id);
         await render();
       } else if (t.closest("[data-read]")) {
         const r = await api("POST", "/candidates/read-sites");
@@ -1274,6 +1284,74 @@ views.contacts = async (view) => {
     } catch (err) {
       if (err.status !== 401) toast(err.message, { bad: true });
       await render();
+    }
+  };
+};
+
+// ---------- AI helpers (Bankr LLM gateway) ----------
+views.ai = async (view) => {
+  let models = null;
+  const render = async () => {
+    const a = await api("GET", "/ai");
+    const pct = a.budget.cap ? Math.min(100, (a.budget.spent / a.budget.cap) * 100) : 0;
+    view.innerHTML = `${header("AI helpers", "Your Bankr LLM credit, used in the back office only: it checks whether new teams are real companies (with a clean one-liner, type and sectors) and reads team pages for contacts, leaving out investors. Only public website text is sent; never founders' data. You still approve everything.")}
+      <div class="panel"><h2>Status <span>Rightroom's estimate · Bankr's dashboard shows the real balance</span></h2><div class="pad">
+        <div class="spend-n">${usd(a.budget.spent)} <span>spent of ${usd(a.budget.cap)} this month · ${usd(a.budget.left)} left · ${a.month.calls} calls${a.month.failed ? ` (${a.month.failed} failed)` : ""}</span></div>
+        <div class="meter"><i data-width="${pct.toFixed(1)}"></i></div>
+        <p class="meta">${a.key_set ? `Key set · model: <b>${a.model ? esc(a.model) : "none chosen yet"}</b> · ${a.on ? "<b>on</b>: new companies and contacts are checked a few each hour" : "off until you choose a model"}` : "<b>Off:</b> add <code>BANKR_LLM_KEY</code> as a secret in Cloudflare (Workers → rightroom → Settings). Optional variables: <code>AI_MONTHLY_CAP_USD</code> (default 20), <code>AI_PRICE_INPUT_PER_M_USD</code> and <code>AI_PRICE_OUTPUT_PER_M_USD</code> for the chosen model's prices (defaults 3 and 15, cautious)."}</p>
+      </div></div>
+      ${
+        a.key_set
+          ? `<div class="panel"><h2>Model <span>A fast, cheap model is enough (for example a Haiku, Flash or mini model)</span></h2><div class="pad">
+        <form class="toolbar flat" id="ai-model">
+          <label class="sr" for="ai-pick">Model</label>
+          ${models ? `<select id="ai-pick" name="model">${models.map((m) => `<option ${m === a.model ? "selected" : ""}>${esc(m)}</option>`).join("")}</select>` : `<input id="ai-pick" name="model" maxlength="120" placeholder="model id" value="${esc(a.model ?? "")}">`}
+          <button class="btn sm dark" type="submit">Use this model</button>
+          ${models ? "" : `<button class="btn sm" type="button" data-models>Load Bankr's model list</button>`}
+          <button class="btn sm" type="button" data-aitest ${a.model ? "" : "disabled"}>Test (tiny call)</button>
+        </form>
+      </div></div>`
+          : ""
+      }
+      <div class="panel"><h2>Recent calls</h2>${
+        a.recent.length
+          ? `<table><tr><th>When</th><th>For</th><th class="hide-m">Model</th><th>Tokens</th><th>Cost</th></tr>${a.recent
+              .map(
+                (r) => `<tr><td>${day(r.created_at)} ${new Date(r.created_at).toISOString().slice(11, 16)}</td><td>${esc(r.purpose)}${r.status === "failed" ? `<br><span class="warn-t">${esc(r.error ?? "failed")}</span>` : ""}</td><td class="hide-m">${esc(r.model)}</td><td>${r.input_tokens} in · ${r.output_tokens} out</td><td>${usd(r.estimated_usd, 4)}</td></tr>`,
+              )
+              .join("")}</table>`
+          : `<div class="pad meta">No calls yet.</div>`
+      }</div>`;
+    fillMeters(view);
+  };
+  await render();
+  view.onclick = async (e) => {
+    const t = e.target;
+    try {
+      if (t.closest("[data-models]")) {
+        ({ models } = await api("GET", "/ai/models"));
+        toast(`${models.length} models available.`);
+        await render();
+      } else if (t.closest("[data-aitest]")) {
+        const r = await api("POST", "/ai/test");
+        toast(`It works. The model answered: ${r.answer}`);
+        await render();
+      }
+    } catch (err) {
+      if (err.status !== 401) toast(err.message, { bad: true });
+    }
+  };
+  view.onsubmit = async (e) => {
+    if (e.target.id !== "ai-model") return;
+    e.preventDefault();
+    const model = e.target.model.value.trim();
+    if (!model) return;
+    try {
+      await api("POST", "/ai/model", { model });
+      toast(`Using ${model}.`);
+      await render();
+    } catch (err) {
+      if (err.status !== 401) toast(err.message, { bad: true });
     }
   };
 };

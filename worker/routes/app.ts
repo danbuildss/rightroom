@@ -14,9 +14,11 @@ import { z } from "zod";
 import { buildDraft, draftPatchSchema, draftSaveSchema, VARIANTS } from "../../shared/draft.ts";
 import { GOALS, profileUpdateSchema } from "../../shared/founder.ts";
 import { pipelinePatchSchema } from "../../shared/pipeline.ts";
+import { AUDIENCES, ORG_TYPES, STAGES } from "../../shared/profile.ts";
 import { isInvited, submitAccessRequest, TooManyRequestsError } from "../db/access.ts";
 import { companyIntel, discover } from "../db/discover.ts";
 import { deleteDraft, listDrafts, saveDraft, updateDraft, verifiedCompanyId } from "../db/drafts.ts";
+import { EXPLORE_SORTS, explore } from "../db/explore.ts";
 import {
   createSession,
   deleteFounderWorkspace,
@@ -55,6 +57,22 @@ const discoverQuery = z.object({
     .pipe(z.array(z.enum(GOALS)))
     .optional(),
   category: z.string().max(60).optional(),
+});
+
+const exploreQuery = z.object({
+  q: z.string().trim().max(200).optional(),
+  type: z.enum(ORG_TYPES).optional(),
+  sector: z.string().max(60).optional(),
+  country: z
+    .string()
+    .regex(/^[A-Z]{2}$/)
+    .optional(),
+  goal: z.enum(GOALS).optional(),
+  stage: z.enum(STAGES).optional(),
+  audience: z.enum(AUDIENCES).optional(),
+  sort: z.enum(EXPLORE_SORTS).optional(),
+  limit: z.coerce.number().int().min(1).max(60).optional(),
+  offset: z.coerce.number().int().min(0).max(10_000).optional(),
 });
 
 const draftQuery = z.object({
@@ -208,6 +226,13 @@ export function founderApp(options: FounderAppOptions = {}) {
             category: q.data.category,
           }),
         );
+      })
+
+      // Every verified company, with search, filters, category counts and pages.
+      .get("/explore", requireFounder, async (c) => {
+        const q = exploreQuery.safeParse(c.req.query());
+        if (!q.success) return jsonError(c, 400, "invalid_request", "Invalid filters.");
+        return c.json(await explore(c.env.DB, c.get("founder").workspace_id, q.data));
       })
 
       .get("/companies/:slug", requireFounder, async (c) => {

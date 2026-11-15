@@ -13,6 +13,7 @@ import { describe, expect, it } from "vitest";
 import { SignInPlaceholder } from "../app/src/App.tsx";
 import type { DiscoverResult } from "../app/src/api.ts";
 import { ResultCard } from "../app/src/Discover.tsx";
+import { XCard } from "../app/src/Explore.tsx";
 import { CountUp, FitMeter } from "../app/src/motion.tsx";
 
 async function scan(html: string, opts: { fragment?: boolean } = {}) {
@@ -137,5 +138,36 @@ describe("accessibility (axe)", () => {
     expect(await scan(html, { fragment: true })).toEqual([]);
     expect(html).toContain("Partnership readiness 5 of 5");
     expect(html).toContain('<span class="sr">78</span>');
+  });
+
+  it("an Explore card has no issues and labels the angle as a suggestion", async () => {
+    const html = renderToStaticMarkup(
+      createElement(XCard, {
+        c: {
+          slug: "example-pay",
+          name: "Example Pay (fictional)",
+          domain: "example.com",
+          description: "Payments API.",
+          sectors: [{ slug: "payments", label: "Payments" }],
+          profile: { type: "platform_api", country: "NG", stage: "growth", audiences: ["b2b"] },
+          partnership_types: ["integrations"],
+          latest_signal: {
+            type_label: "Partner program launched",
+            event_date: "2026-11-10",
+            last_verified_at: "2026-11-12T00:00:00Z",
+            fresh: true,
+          },
+          angle: "Join their new partner program.",
+          fit: { label: "strong", overall: 83 },
+          evidence: "high",
+          last_verified_at: "2026-11-12T00:00:00Z",
+          saved: null,
+        },
+        onOpen: () => {},
+      }),
+    );
+    expect(await scan(`<h2>Results</h2>${html}`, { fragment: true })).toEqual([]);
+    expect(html).toContain("our suggestion");
+    expect(html).toContain("Nigeria");
   });
 });

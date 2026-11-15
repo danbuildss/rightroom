@@ -118,7 +118,14 @@ export interface GrokParseResult {
   citations: number;
   input_tokens: number;
   output_tokens: number;
+  /** For the run log: how many posts Grok listed, which were dropped and why, and the start of its answer. */
+  debug: { listed: number; dropped: { url: string; reason: string }[]; answer_excerpt: string };
 }
+
+/** Any X post link, including x.com/i/status/<id> and x.com/i/web/status/<id> as xAI cites them. */
+const ANY_STATUS =
+  /https?:\/\/(?:www\.|mobile\.)?(?:x|twitter)\.com\/(?:i\/web|[A-Za-z0-9_]{1,15})\/status(?:es)?\/(\d{5,25})/g;
+const postId = (url: string) => url.match(/\/status(?:es)?\/(\d{5,25})/)?.[1] ?? null;
 
 function collectStrings(value: unknown, into: string[]) {
   if (typeof value === "string") into.push(value);
@@ -177,36 +184,65 @@ export function parseGrokResponse(json: unknown): GrokParseResult {
     if (Array.isArray(content))
       for (const c of content) collectStrings((c as { annotations?: unknown }).annotations, strings);
   }
-  const cited = new Set(strings.map((s) => canonicalPostUrl(s)).filter((u): u is string => u !== null));
+  // Cited posts by number: xAI often cites x.com/i/status/<id>, while Grok's answer names the account.
+  // The author is known only when the citation names it.
+  const citedAuthor = new Map<string, string | null>();
+  for (const str of strings) {
+    for (const m of str.matchAll(ANY_STATUS)) {
+      const id = m[1] as string;
+      const seg = m[0].split("/")[3]?.toLowerCase() ?? "";
+      const author = seg === "i" ? null : seg;
+      if (!citedAuthor.has(id) || (author && !citedAuthor.get(id))) citedAuthor.set(id, author);
+    }
+  }
+  /** The post's author if it was cited (the citation's name wins over Grok's), or null if it wasn't cited. */
+  const citedPost = (url: string): { id: string; author: string } | null => {
+    const id = postId(url);
+    if (!id || !citedAuthor.has(id)) return null;
+    const claimed = url.split("/")[3]?.toLowerCase() ?? "";
+    return { id, author: citedAuthor.get(id) ?? claimed };
+  };
 
   const items: CollectedItem[] = [];
-  let dropped = 0;
+  const droppedList: { url: string; reason: string }[] = [];
   for (const raw of parsed.items) {
     const r = itemSchema.safeParse(raw);
+    const given = r.success ? r.data.post_url : String((raw as { post_url?: unknown })?.post_url ?? "");
     const url = r.success ? canonicalPostUrl(r.data.post_url) : null;
-    if (!r.success || !url || !cited.has(url)) {
-      dropped += 1;
+    if (!r.success || !url) {
+      droppedList.push({ url: given.slice(0, 200), reason: "not an X post link" });
       continue;
     }
-    const handle = url.split("/")[3] ?? "";
+    const cited = citedPost(url);
+    if (!cited) {
+      droppedList.push({ url, reason: "not among the posts xAI says it found" });
+      continue;
+    }
+    const handle = cited.author;
+    const canonical = handle && handle !== "i" ? `https://x.com/${handle}/status/${cited.id}` : url;
     const text = r.data.post_text?.trim() ?? "";
     const website = r.data.company_website ? normalizeDomain(r.data.company_website) : null;
     items.push({
-      url,
+      url: canonical,
       title: `@${handle}: ${text.slice(0, 120) || "post"}`.slice(0, 300),
       published_at: toIsoDate(r.data.posted_at),
       excerpt: excerpt(text),
       domain: website,
     });
   }
+  const dropped = droppedList.length;
+  /** Evidence for a handle: a cited post written by that same account. */
+  const backs = (evidence: string, h: string) => {
+    const ev = canonicalPostUrl(evidence);
+    const cited = ev ? citedPost(ev) : null;
+    return cited && cited.author === h ? `https://x.com/${h}/status/${cited.id}` : null;
+  };
   let handle: GrokParseResult["handle"] = null;
   const oh = z.object({ handle: z.string(), evidence_post_url: z.string() }).safeParse(parsed.official_handle ?? null);
   if (oh.success) {
     const h = oh.data.handle.replace(/^@/, "").toLowerCase();
-    const ev = canonicalPostUrl(oh.data.evidence_post_url);
-    if (/^[a-z0-9_]{1,15}$/.test(h) && ev && cited.has(ev) && ev.split("/")[3] === h) {
-      handle = { handle: h, evidence_url: ev };
-    }
+    const ev = /^[a-z0-9_]{1,15}$/.test(h) ? backs(oh.data.evidence_post_url, h) : null;
+    if (ev) handle = { handle: h, evidence_url: ev };
   }
   const people: GrokParseResult["people"] = [];
   for (const raw of Array.isArray(parsed.people) ? parsed.people.slice(0, 3) : []) {
@@ -220,9 +256,9 @@ export function parseGrokResponse(json: unknown): GrokParseResult {
       .safeParse(raw);
     if (!p.success) continue;
     const h = p.data.handle.replace(/^@/, "").toLowerCase();
-    const ev = canonicalPostUrl(p.data.evidence_post_url);
     const role = p.data.role.trim().slice(0, 120);
-    if (!/^[a-z0-9_]{1,15}$/.test(h) || !ev || !cited.has(ev) || ev.split("/")[3] !== h || role.length < 2) continue;
+    const ev = /^[a-z0-9_]{1,15}$/.test(h) && role.length >= 2 ? backs(p.data.evidence_post_url, h) : null;
+    if (!ev) continue;
     const name = p.data.name?.trim().slice(0, 120) || null;
     people.push({ name, handle: h, role, evidence_url: ev });
   }
@@ -231,7 +267,8 @@ export function parseGrokResponse(json: unknown): GrokParseResult {
     dropped,
     handle,
     people,
-    citations: cited.size,
+    citations: citedAuthor.size,
+    debug: { listed: parsed.items.length, dropped: droppedList.slice(0, 20), answer_excerpt: answer.slice(0, 1500) },
     input_tokens: body.usage?.input_tokens ?? 0,
     output_tokens: body.usage?.output_tokens ?? 0,
   };

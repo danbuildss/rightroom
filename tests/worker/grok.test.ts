@@ -184,4 +184,66 @@ describe("Grok test", () => {
     expect(after.searches.find((s) => s.id === test[0]?.id)).toMatchObject({ runs: 1, useful: 1 });
     expect(after.totals.cost_per_useful_usd).toBeGreaterThan(0);
   });
+
+  it("keeps posts that xAI cites as x.com/i/status/<id>, and logs what was asked and why others were dropped", async () => {
+    await admin(noWeb, "POST", "/grok/test-searches");
+    const status = (await (await admin(noWeb, "GET", "/grok")).json()) as { searches: { id: string; name: string }[] };
+    const src = status.searches.find((x) => x.name.includes("Payments"));
+    const id = `${Date.now()}`.padEnd(18, "3");
+    const fetcher = (async () =>
+      xai(
+        {
+          items: [
+            {
+              post_url: `https://x.com/payco/status/${id}1`,
+              posted_at: "2026-11-14",
+              post_text: "Our partner API is live",
+            },
+            { post_url: `https://x.com/madeup/status/${id}9`, posted_at: "2026-11-14", post_text: "Invented" },
+            { post_url: "https://example.com/not-x", post_text: "Not a post" },
+          ],
+        },
+        // xAI's citation form, without the account name:
+        [`https://x.com/i/status/${id}1`],
+      )) as unknown as typeof fetch;
+    const run = (await (await admin(fetcher, "POST", `/watched-sources/${src?.id}/run`)).json()) as {
+      outcome: { items_new: number };
+    };
+    expect(run.outcome.items_new).toBe(1);
+
+    const runs = (await (await admin(noWeb, "GET", `/grok/runs?source_id=${src?.id}`)).json()) as {
+      runs: {
+        status: string;
+        query: string;
+        listed: number;
+        kept: number;
+        dropped: { reason: string }[];
+        answer_excerpt: string;
+        cost_usd: number;
+      }[];
+    };
+    expect(runs.runs[0]).toMatchObject({ status: "ok", listed: 3, kept: 1 });
+    expect(runs.runs[0]?.query).toContain("payments");
+    expect(runs.runs[0]?.dropped.map((d) => d.reason).sort()).toEqual([
+      "not among the posts xAI says it found",
+      "not an X post link",
+    ]);
+    expect(runs.runs[0]?.answer_excerpt).toContain("partner API");
+    expect(runs.runs[0]?.cost_usd).toBeGreaterThan(0);
+  });
+
+  it("logs xAI's own error message when a search fails", async () => {
+    const status = (await (await admin(noWeb, "GET", "/grok")).json()) as { searches: { id: string; name: string }[] };
+    const src = status.searches.find((x) => x.name.includes("Base"));
+    const failing = (async () =>
+      new Response(JSON.stringify({ error: "The model grok-x does not exist" }), {
+        status: 404,
+      })) as unknown as typeof fetch;
+    await admin(failing, "POST", `/watched-sources/${src?.id}/run`);
+    const runs = (await (await admin(noWeb, "GET", `/grok/runs?source_id=${src?.id}`)).json()) as {
+      runs: { status: string; error: string }[];
+    };
+    expect(runs.runs[0]).toMatchObject({ status: "failed" });
+    expect(runs.runs[0]?.error).toContain("does not exist");
+  });
 });

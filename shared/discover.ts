@@ -148,7 +148,7 @@ export function parseQuery(raw: string): ParsedQuery {
 }
 
 /** Which kinds of signal suggest a company is open to each kind of partnership. */
-const GOAL_SIGNALS: Record<Goal, SignalType[]> = {
+export const GOAL_SIGNALS: Record<Goal, SignalType[]> = {
   integrations: ["integration_announced", "api_or_sdk_released", "partner_program_launched"],
   distribution: ["partner_program_launched", "collaboration_request", "ecosystem_expansion"],
   co_marketing: ["product_launched", "collaboration_request", "partner_program_launched"],

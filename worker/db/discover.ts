@@ -5,6 +5,7 @@
  */
 import { type DiscoverCompany, type Goal, LABEL_RANK, parseQuery, scoreCompany } from "../../shared/discover.ts";
 import { suggest } from "../../shared/intel.ts";
+import type { OrgType, Stage as ProfileStage, ProfileStatus } from "../../shared/profile.ts";
 import { effectiveSignalStatus, SIGNAL_TYPES, type SignalType } from "../../shared/signals.ts";
 import { listContacts } from "./contacts.ts";
 
@@ -31,6 +32,12 @@ interface CompanyRow {
   domain: string;
   description: string | null;
   last_verified_at: string | null;
+  first_seen_at: string;
+  org_type: OrgType | null;
+  hq_country: string | null;
+  stage: ProfileStage | null;
+  audiences_json: string;
+  profile_status: ProfileStatus;
 }
 
 interface SignalRow {
@@ -54,7 +61,7 @@ const host = (url: string) => {
   }
 };
 
-async function load(db: D1Database, workspaceId: string, input: DiscoverInput, only?: { slug: string }) {
+export async function load(db: D1Database, workspaceId: string, input: DiscoverInput, only?: { slug: string }) {
   const profile = await db
     .prepare("SELECT company_name, one_liner, buyers, goals_json FROM founder_profiles WHERE workspace_id = ?")
     .bind(workspaceId)
@@ -76,7 +83,8 @@ async function load(db: D1Database, workspaceId: string, input: DiscoverInput, o
   const bind = only ? [only.slug] : [];
   const { results: companies } = await db
     .prepare(
-      `SELECT co.id, co.slug, co.name, co.primary_domain AS domain, co.description, co.last_verified_at FROM companies co
+      `SELECT co.id, co.slug, co.name, co.primary_domain AS domain, co.description, co.last_verified_at, co.first_seen_at,
+         co.org_type, co.hq_country, co.stage, co.audiences_json, co.profile_status FROM companies co
        WHERE co.status = 'verified' AND co.is_sample = 0 ${filter} ORDER BY co.name COLLATE NOCASE LIMIT 1000`,
     )
     .bind(...bind)

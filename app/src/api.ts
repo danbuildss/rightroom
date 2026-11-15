@@ -200,3 +200,59 @@ export const pipeline = {
   timeline: (id: string) =>
     call<{ events: { at: string; text: string }[] }>("GET", `/pipeline/${encodeURIComponent(id)}/timeline`),
 };
+
+/* Explore: every verified company, with filters and category counts. */
+export type OrgType =
+  | "startup_product"
+  | "platform_api"
+  | "ecosystem"
+  | "distribution"
+  | "community_media"
+  | "accelerator_program";
+export type GoalKey = "integrations" | "distribution" | "co_marketing" | "ecosystem";
+export interface ExploreCard {
+  slug: string;
+  name: string;
+  domain: string;
+  description: string | null;
+  sectors: { slug: string; label: string }[];
+  profile: { type: OrgType | null; country: string | null; stage: string | null; audiences: string[] } | null;
+  partnership_types: GoalKey[];
+  latest_signal: { type_label: string; event_date: string | null; last_verified_at: string; fresh: boolean } | null;
+  angle: string | null;
+  fit: { label: "strong" | "potential"; overall: number } | null;
+  evidence: "high" | "medium" | "low";
+  last_verified_at: string | null;
+  saved: { id: string; stage: string } | null;
+}
+export interface ExploreResponse {
+  total: number;
+  all_total: number;
+  offset: number;
+  limit: number;
+  results: ExploreCard[];
+  facets: {
+    types: { type: OrgType; label: string; blurb: string; count: number }[];
+    sectors: { slug: string; label: string; count: number }[];
+    countries: { code: string; count: number }[];
+    goals: { goal: GoalKey; count: number }[];
+    stages: { stage: string; count: number }[];
+    audiences: { audience: string; count: number }[];
+  };
+}
+export interface ExploreParams {
+  q?: string;
+  type?: OrgType;
+  sector?: string;
+  country?: string;
+  goal?: GoalKey;
+  stage?: string;
+  audience?: string;
+  sort?: "signal" | "name" | "fit" | "newest";
+  offset?: number;
+}
+export function explore(p: ExploreParams) {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(p)) if (v !== undefined && v !== "") qs.set(k, String(v));
+  return call<ExploreResponse>("GET", `/explore?${qs}`);
+}

@@ -3,6 +3,7 @@ import { ApiError, api, pipeline, type View } from "./api.ts";
 import { markPrivyLogout } from "./authFlag.ts";
 import { Company } from "./Company.tsx";
 import { Discover } from "./Discover.tsx";
+import { Explore } from "./Explore.tsx";
 import { ToastProvider } from "./motion.tsx";
 import { Pipeline } from "./Pipeline.tsx";
 import { Logo, Screen } from "./ui.tsx";
@@ -36,7 +37,7 @@ type Stage =
       view: View;
       editing?: number;
       at?: number;
-      tab?: "discover" | "company" | "saved" | "pipeline";
+      tab?: "explore" | "discover" | "company" | "saved" | "pipeline";
       profile?: string;
     };
 
@@ -177,8 +178,9 @@ function FounderHome(props: {
     }
   };
 
-  const tab = stage.tab ?? "discover";
-  const go = (t: "discover" | "company" | "saved" | "pipeline") => setStage({ kind: "app", view: stage.view, tab: t });
+  const tab = stage.tab ?? "explore";
+  const go = (t: "explore" | "discover" | "company" | "saved" | "pipeline") =>
+    setStage({ kind: "app", view: stage.view, tab: t });
   const suggestion = profile.one_liner
     ? `e.g. Companies that could integrate with "${profile.one_liner.slice(0, 60)}" and help us reach more customers`
     : "e.g. Payments companies that could integrate our API and help us reach more businesses";
@@ -189,6 +191,14 @@ function FounderHome(props: {
         <aside className="side">
           <Logo />
           <nav aria-label="Workspace">
+            <button
+              type="button"
+              className={tab === "explore" ? "navi on" : "navi"}
+              aria-current={tab === "explore" ? "page" : undefined}
+              onClick={() => go("explore")}
+            >
+              Explore
+            </button>
             <button
               type="button"
               className={tab === "discover" ? "navi on" : "navi"}
@@ -235,14 +245,22 @@ function FounderHome(props: {
           </div>
         </aside>
         <main className="wmain">
+          {/* Explore and Discover stay mounted while a company is open, so filters and results are kept. */}
+          <div hidden={tab !== "explore" || Boolean(stage.profile)}>
+            <Explore onOpen={(slug) => setStage({ ...stage, tab: "explore", profile: slug })} />
+          </div>
           <div hidden={tab !== "discover" || Boolean(stage.profile)}>
             <Discover
               suggestion={suggestion}
               onOpen={(slug) => setStage({ ...stage, tab: "discover", profile: slug })}
             />
           </div>
-          {tab === "discover" && stage.profile ? (
-            <Company slug={stage.profile} onBack={() => setStage({ ...stage, profile: undefined })} />
+          {(tab === "discover" || tab === "explore") && stage.profile ? (
+            <Company
+              slug={stage.profile}
+              backLabel={tab === "explore" ? "Explore" : "Discover"}
+              onBack={() => setStage({ ...stage, profile: undefined })}
+            />
           ) : null}
           {tab === "saved" || tab === "pipeline" ? (
             <Pipeline

@@ -2,6 +2,14 @@
 
 Short records of technical decisions, newest first. Product decisions live in `PLAN.md`.
 
+## 2026-11-15: Explore (Explore, step 2)
+- **`GET /api/app/explore`** lists every verified, non-sample company for a signed-in founder, with search (all words must match the name, domain, description or category labels), filters (type, sector, country, partner goal, stage, audience), four sorts (newest signal, best fit, name, recently added) and pages of 24. It reuses Discover's loader, so fit, signals and saved state match everywhere.
+- **Counts:** the category tiles count the search result; the other filters count within the chosen category. A tile or filter with nothing in it is not shown.
+- **Only confirmed profiles count.** Type, country, stage and audience appear on cards and in filters only when `profile_status = 'confirmed'`.
+- **Partnership types** come from fresh verified signals (the same goal-to-signal map Discover uses for mutual value), never from guesses. The **possible angle** is `suggest().for_you` from the company page, labelled "our suggestion"; with no verified signal, the card says there isn't enough to suggest one.
+- **Fit on cards:** shown only for Strong or Potential fit. Explore never hides a company because of its fit.
+- **Initials, not logos,** so we never show another company's mark. Explore is the landing tab until Home arrives; Explore and Discover stay mounted while a company page is open, so filters survive "← Explore".
+
 ## 2026-11-15: Company profile and the overlap rule (Explore, step 1)
 - **Profile = Rightroom's labels, not verified claims:** `org_type`, `hq_country` (ISO two-letter code), `stage` and `audiences` on `companies` (migration 0012). Like categories, editing them never reopens review. They're shown to founders only when `profile_status = 'confirmed'`.
 - **Suggestions are never shown as fact.** A profile in an import file, or the pre-filled one for the 49 companies verified so far (in migration 0012, from their verified descriptions and sectors), is stored as `suggested`. Dan confirms in the back office (one by one, by editing, or in a batch). Location is left empty, and stage is filled in only where a company is clearly established. Who confirmed and when is recorded.

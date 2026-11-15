@@ -36,7 +36,15 @@ function Ext({ url, text }: { url: string; text?: string }) {
   );
 }
 
-export function Company({ slug, onBack }: { slug: string; onBack: () => void }) {
+export function Company({
+  slug,
+  onBack,
+  backLabel = "Discover",
+}: {
+  slug: string;
+  onBack: () => void;
+  backLabel?: string;
+}) {
   const [data, setData] = useState<CompanyIntel | null>(null);
   const [error, setError] = useState("");
   const [showReasons, setShowReasons] = useState(false);
@@ -54,7 +62,7 @@ export function Company({ slug, onBack }: { slug: string; onBack: () => void }) 
   const crumb = (
     <div className="crumb">
       <button type="button" className="linkbtn" onClick={onBack}>
-        ← Discover
+        ← {backLabel}
       </button>
       {data ? ` / ${data.company.name}` : ""}
     </div>

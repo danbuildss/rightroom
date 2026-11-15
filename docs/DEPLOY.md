@@ -68,3 +68,16 @@ Never paste the key into chat or commit it.
 ## Backups
 
 - `npx wrangler d1 export DB --remote --output backup-YYYY-MM-DD.sql` (keep the file private; never commit it).
+
+## Optional: a second copy of the site on Vercel
+
+The marketing site can also be served from Vercel (Somehow Internet team). `vercel.json` does the setup:
+it serves the `site/` folder as it is and forwards every `/api/...` request to the Cloudflare Worker,
+so the Request access form saves to the same database. Cloudflare stays the only back end.
+
+When importing the repo in Vercel:
+- **Application Preset:** choose **Other** (not Vite). `vercel.json` overrides it anyway.
+- **Root Directory:** `./`. Leave Build and Output Settings and Environment Variables alone.
+- Never add secrets (admin key, API keys) to Vercel: it doesn't need any.
+
+If the Worker URL ever changes, update the `rewrites` destination in `vercel.json`.

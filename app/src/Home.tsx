@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { type HomeResponse, homeApi, pipeline } from "./api.ts";
+import { CompanyMark } from "./CompanyBits.tsx";
 import { announceSavedChange, useToast } from "./motion.tsx";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -143,9 +144,7 @@ export function Home(props: {
                 ) : (
                   data.matches.map((m) => (
                     <div className="hrow" key={m.slug}>
-                      <span className="ini sm" aria-hidden="true">
-                        {initials(m.name)}
-                      </span>
+                      <CompanyMark name={m.name} logo={m.logo} size="sm" />
                       <div className="hrm">
                         <div className="hname-row">
                           <span className="hn">{m.name}</span>
@@ -220,9 +219,7 @@ export function Home(props: {
                 ) : (
                   data.added.map((a) => (
                     <div className="hrow" key={a.slug}>
-                      <span className="ini sm" aria-hidden="true">
-                        {initials(a.name)}
-                      </span>
+                      <CompanyMark name={a.name} logo={a.logo} size="sm" />
                       <div className="hrm">
                         <button type="button" className="linkbtn hname" onClick={() => onOpen(a.slug)}>
                           {a.name}

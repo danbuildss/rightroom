@@ -36,6 +36,8 @@ const card: DiscoverResult = {
   slug: "example-pay",
   name: "Example Pay",
   domain: "example.com",
+  logo: null,
+  links: { website: "https://example.com", x: null, github: null, partners: null, docs: null },
   description: "Payments API (test record).",
   categories: [{ slug: "payments", label: "Payments", kind: "sector" }],
   fit: {
@@ -148,6 +150,14 @@ describe("accessibility (axe)", () => {
           name: "Example Pay (fictional)",
           domain: "example.com",
           description: "Payments API.",
+          logo: null,
+          links: {
+            website: "https://example.com",
+            x: "https://x.com/examplepay",
+            github: null,
+            partners: "https://example.com/partners",
+            docs: null,
+          },
           sectors: [{ slug: "payments", label: "Payments" }],
           profile: { type: "platform_api", country: "NG", stage: "growth", audiences: ["b2b"] },
           partnership_types: ["integrations"],

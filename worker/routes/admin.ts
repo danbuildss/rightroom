@@ -20,6 +20,7 @@ import { inviteDirectly, listAccessRequests, reviewAccessRequest } from "../db/a
 import { auditData } from "../db/audit.ts";
 import {
   addAlias,
+  addSource,
   confirmProfiles,
   DuplicateCompanyError,
   getCompany,
@@ -30,6 +31,7 @@ import { addContact, listContacts, reviewContact } from "../db/contacts.ts";
 import { ImportRejectedError, importRegistryFile, reviewQueue, updateCompany, updateSignal } from "../db/curation.ts";
 import { companyEvidence, signalEvidence } from "../db/evidence.ts";
 import { listFounders } from "../db/founders.ts";
+import { fetchLogo, fetchMissingLogos, hideLogo, logoInfo } from "../db/logos.ts";
 import { adminOverview } from "../db/overview.ts";
 import { DuplicateSignalError, getSignal, listSignals, reviewCompany, reviewSignal } from "../db/signals.ts";
 import { ConflictError, NotFoundError } from "../db/util.ts";
@@ -76,6 +78,16 @@ const companyQuery = z.object({
   status: z.enum(COMPANY_STATUSES).optional(),
   profile: z.enum(PROFILE_STATUSES).optional(),
   ...pageQuery,
+});
+const logoFetchSchema = z.strictObject({
+  url: z
+    .url({ protocol: /^https$/ })
+    .max(500)
+    .optional(),
+});
+const linkSchema = z.strictObject({
+  kind: z.enum(["x", "github", "partners", "docs"]),
+  value: z.string().trim().min(1).max(500),
 });
 const confirmProfilesSchema = z.strictObject({ ids: z.array(z.string().min(1).max(64)).min(1).max(200) });
 const signalQuery = z.object({
@@ -173,6 +185,72 @@ export const admin = new Hono<AppEnv>()
     const input = await body(c, confirmProfilesSchema);
     if (input instanceof Response) return input;
     return c.json({ confirmed: await confirmProfiles(c.env.DB, input.ids, c.get("adminEmail")) });
+  })
+  // Logos: state, fetch again (optionally from Dan's URL), hide, and fetch a few missing ones.
+  .get("/companies/:id/logo", async (c) => c.json({ logo: await logoInfo(c.env.DB, c.req.param("id")) }))
+  .post("/companies/:id/logo/fetch", async (c) => {
+    const input = await body(c, logoFetchSchema);
+    if (input instanceof Response) return input;
+    try {
+      const result = await fetchLogo(c.env.DB, c.req.param("id"), {
+        fetcher: c.get("fetcher"),
+        url: input.url,
+        editor: c.get("adminEmail"),
+      });
+      return c.json({ ...result, logo: await logoInfo(c.env.DB, c.req.param("id")) });
+    } catch (err) {
+      return fail(c, err);
+    }
+  })
+  .post("/companies/:id/logo/hide", async (c) => {
+    try {
+      await hideLogo(c.env.DB, c.req.param("id"), c.get("adminEmail"));
+      return c.json({ logo: await logoInfo(c.env.DB, c.req.param("id")) });
+    } catch (err) {
+      return fail(c, err);
+    }
+  })
+  .post("/logos/fetch-missing", async (c) =>
+    c.json({ results: await fetchMissingLogos(c.env.DB, { fetcher: c.get("fetcher"), limit: 10 }) }),
+  )
+  // Links shown to founders: X handle and GitHub org (aliases), partner page and docs (pages on the company's own site).
+  .post("/companies/:id/links", async (c) => {
+    const input = await body(c, linkSchema);
+    if (input instanceof Response) return input;
+    try {
+      const id = c.req.param("id");
+      if (input.kind === "x" || input.kind === "github") {
+        await addAlias(c.env.DB, id, input.kind === "x" ? "x_handle" : "github_org", input.value);
+      } else {
+        const co = await getCompany(c.env.DB, id);
+        if (!co) return jsonError(c, 404, "not_found", "Company not found.");
+        let host = "";
+        try {
+          host = new URL(input.value).hostname.replace(/^www\./, "");
+        } catch {
+          return jsonError(c, 400, "invalid_request", "Give a full https:// link.");
+        }
+        if (!(host === co.primary_domain || host.endsWith(`.${co.primary_domain}`)))
+          return jsonError(c, 400, "invalid_request", `Use a page on ${co.primary_domain}.`);
+        await addSource(c.env.DB, id, {
+          url: input.value,
+          kind: input.kind === "partners" ? "partner_page" : "docs",
+          title: input.kind === "partners" ? "Partner page" : "Docs",
+          published_at: null,
+        });
+      }
+      return c.json({ company: await getCompany(c.env.DB, id) });
+    } catch (err) {
+      return fail(c, err);
+    }
+  })
+  .delete("/companies/:id/aliases/:kind", async (c) => {
+    const kind = c.req.param("kind");
+    if (kind !== "x_handle" && kind !== "github_org") return jsonError(c, 400, "invalid_request", "Only X and GitHub.");
+    await c.env.DB.prepare("DELETE FROM company_aliases WHERE company_id = ? AND kind = ?")
+      .bind(c.req.param("id"), kind)
+      .run();
+    return c.json({ company: await getCompany(c.env.DB, c.req.param("id")) });
   })
   .get("/companies", async (c) => {
     const q = companyQuery.safeParse(c.req.query());

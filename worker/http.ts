@@ -25,7 +25,7 @@ export function jsonError(
 export const securityHeaders: MiddlewareHandler = async (c, next) => {
   await next();
   const h = c.res.headers;
-  h.set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; base-uri 'none'");
+  h.set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; sandbox");
   h.set("X-Content-Type-Options", "nosniff");
   h.set("X-Frame-Options", "DENY");
   h.set("Referrer-Policy", "no-referrer");

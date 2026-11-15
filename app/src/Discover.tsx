@@ -1,5 +1,6 @@
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { type DiscoverResponse, type DiscoverResult, discover, pipeline } from "./api.ts";
+import { CompanyMark } from "./CompanyBits.tsx";
 import { announceSavedChange, prefersReducedMotion, useToast } from "./motion.tsx";
 
 const GOAL_LABELS: Record<string, string> = {
@@ -257,6 +258,7 @@ export function ResultCard({
     <article className="dcard">
       <div className="dch">
         <h2 className="dname">
+          <CompanyMark name={r.name} logo={r.logo} size="sm" />
           {r.name}
           {sectors.length ? <span className="dsector">{sectors.join(" · ")}</span> : null}
         </h2>

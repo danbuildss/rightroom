@@ -775,6 +775,7 @@ views.companies = async (view) => {
         <button class="tab${mode === "suggested" ? " on" : ""}" type="button" data-mode="suggested" aria-pressed="${mode === "suggested"}">Profiles to confirm ${toConfirm.length}</button>
       </div></div>
       <form class="toolbar" id="co-search"><input name="q" placeholder="Search companies" value="${esc(q)}" maxlength="100"><button class="btn sm" type="submit">Search</button></form>
+      <div class="toolbar"><span class="meta">Logos come from each company's own website, a few each hour. Founders see initials until one is found.</span><button class="btn sm" type="button" data-logos-missing>Find missing logos now</button></div>
       ${mode === "suggested" && companies.length ? `<div class="toolbar"><span class="meta">Check the suggestions below first.</span><button class="btn sm blue" type="button" data-confirm-all>✓ Confirm all ${companies.length} as suggested</button></div>` : ""}
       ${mode === "suggested" ? `<p class="help">These were pre-filled from each company's verified description and sectors. Location is left for you. Check them, fix any that are wrong with Profile ▾, then confirm.</p>` : ""}
       ${companies.length ? "" : `<div class="empty"><b>${mode === "suggested" ? "Nothing to confirm" : "No verified companies match"}</b>${mode === "suggested" ? "Every suggested profile is confirmed." : "Verify companies in Review first."}</div>`}
@@ -782,8 +783,9 @@ views.companies = async (view) => {
         .map(
           (c) => `<article class="item" data-id="${esc(c.id)}">
         <div class="ih co-ih"><div class="grow"><div class="title">${esc(c.name)} ${PROFILE_PILL[c.profile_status] ?? ""}</div><div class="meta">${link(`https://${c.primary_domain}`, c.primary_domain)}${c.is_sample ? " · sample" : ""}${profileLine(c) ? ` · ${esc(profileLine(c))}` : ""}</div></div>
-        <div class="row-actions">${c.profile_status === "suggested" ? `<button class="btn sm blue" type="button" data-confirm>✓ Confirm</button>` : ""}<button class="btn sm" type="button" data-profile aria-expanded="false">Profile ▾</button><button class="btn sm" type="button" data-contacts aria-expanded="false">Contacts ▾</button></div></div>
+        <div class="row-actions">${c.profile_status === "suggested" ? `<button class="btn sm blue" type="button" data-confirm>✓ Confirm</button>` : ""}<button class="btn sm" type="button" data-profile aria-expanded="false">Profile ▾</button><button class="btn sm" type="button" data-brand aria-expanded="false">Logo &amp; links ▾</button><button class="btn sm" type="button" data-contacts aria-expanded="false">Contacts ▾</button></div></div>
         <div class="ib pad-b" data-ppanel hidden></div>
+        <div class="ib pad-b" data-bpanel hidden></div>
         <div class="ib pad-b" data-panel hidden></div>
       </article>`,
         )
@@ -819,6 +821,70 @@ views.companies = async (view) => {
         });
         toast("Profile saved. Founders see it in Explore.");
         await render();
+      } catch (err) {
+        if (err.status !== 401) toast(err.message, { bad: true });
+      }
+    });
+  };
+
+  const brandPanel = async (card) => {
+    const id = card.dataset.id;
+    const c = shown.find((x) => x.id === id);
+    const box = $("[data-bpanel]", card);
+    box.hidden = false;
+    box.innerHTML = `<span class="reading">Loading…</span>`;
+    const [{ logo }, { company }] = await Promise.all([
+      api("GET", `/companies/${encodeURIComponent(id)}/logo`),
+      api("GET", `/companies/${encodeURIComponent(id)}`),
+    ]);
+    const alias = (k) => company.aliases.find((a) => a.kind === k)?.value ?? "";
+    const src = (k) => company.sources.find((x) => x.kind === k)?.url ?? "";
+    const state = !logo
+      ? `<span class="pill grey">Not checked yet</span>`
+      : logo.status === "found"
+        ? `<span class="pill ok">Showing</span>`
+        : logo.status === "hidden"
+          ? `<span class="pill warn">Hidden by you</span>`
+          : `<span class="pill grey">None found: initials shown</span>`;
+    box.innerHTML = `<div class="logo-row">
+        ${logo?.status === "found" ? `<img class="logo-prev" src="/api/public/logos/${encodeURIComponent(c.slug)}?v=${Date.now()}" alt="Current logo for ${esc(c.name)}">` : `<span class="logo-prev none">${esc(c.name.slice(0, 2).toUpperCase())}</span>`}
+        <div class="grow"><div>${state}</div><div class="meta">${logo?.source_url ? `From ${link(logo.source_url)}` : ""}${logo ? ` · checked ${day(logo.checked_at)}` : ""}${logo?.note ? ` · ${esc(logo.note)}` : ""}</div></div>
+      </div>
+      <div class="row-actions mt-s">
+        <button class="btn sm" type="button" data-lfetch>Find on their website</button>
+        <button class="btn sm" type="button" data-lurl>Use an image link…</button>
+        ${logo?.status === "hidden" ? "" : `<button class="btn sm danger" type="button" data-lhide>Hide logo</button>`}
+      </div>
+      <p class="help">PNG, JPEG, WebP, GIF or ICO, up to 100 KB. Never SVG. Shown only next to the company's own name in Explore and on its page.</p>
+      <form class="inline-form flat" data-links>
+        <div class="form-grid">
+          <div><label>X handle<input name="x" maxlength="60" placeholder="@company" value="${esc(alias("x_handle"))}"></label></div>
+          <div><label>GitHub organisation<input name="github" maxlength="100" placeholder="company" value="${esc(alias("github_org"))}"></label></div>
+          <div><label>Partner page<input name="partners" type="url" maxlength="500" placeholder="https://${esc(c.primary_domain)}/partners" value="${esc(src("partner_page"))}"></label></div>
+          <div><label>Docs<input name="docs" type="url" maxlength="500" placeholder="https://docs.${esc(c.primary_domain)}" value="${esc(src("docs"))}"></label></div>
+        </div>
+        <p class="help">Partner page and docs must be on ${esc(c.primary_domain)}. Clearing X or GitHub removes it.</p>
+        <button class="btn sm dark" type="submit">Save links</button>
+      </form>`;
+    $("[data-links]", box).addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const f = e.target;
+      const changes = [];
+      for (const [field, kind, aliasKind] of [["x", "x", "x_handle"], ["github", "github", "github_org"]]) {
+        const v = f[field].value.trim();
+        const was = alias(aliasKind);
+        if (v === was.replace(/^@/, "") || v === `@${was}` || v === was) continue;
+        if (was) changes.push(() => api("DELETE", `/companies/${encodeURIComponent(id)}/aliases/${aliasKind}`));
+        if (v) changes.push(() => api("POST", `/companies/${encodeURIComponent(id)}/links`, { kind, value: v }));
+      }
+      for (const [field, kind, srcKind] of [["partners", "partners", "partner_page"], ["docs", "docs", "docs"]]) {
+        const v = f[field].value.trim();
+        if (v && v !== src(srcKind)) changes.push(() => api("POST", `/companies/${encodeURIComponent(id)}/links`, { kind, value: v }));
+      }
+      try {
+        for (const run of changes) await run();
+        toast(changes.length ? "Links saved. Founders see them now." : "Nothing changed.");
+        brandPanel(card);
       } catch (err) {
         if (err.status !== 401) toast(err.message, { bad: true });
       }
@@ -895,6 +961,35 @@ views.companies = async (view) => {
         await api("POST", "/companies/profiles/confirm", { ids: [card.dataset.id] });
         toast("Profile confirmed.");
         await render();
+      } else if (t.closest("[data-logos-missing]")) {
+        const b = t.closest("[data-logos-missing]");
+        b.disabled = true;
+        b.textContent = "Looking…";
+        const { results } = await api("POST", "/logos/fetch-missing");
+        toast(results.length ? `${results.filter((r) => r.status === "found").length} of ${results.length} logos found.` : "Every company's logo has been checked.");
+        b.disabled = false;
+        b.textContent = "Find missing logos now";
+      } else if (t.closest("[data-brand]") && card) {
+        const b = t.closest("[data-brand]");
+        const open = b.getAttribute("aria-expanded") === "true";
+        b.setAttribute("aria-expanded", String(!open));
+        b.textContent = open ? "Logo & links ▾" : "Hide logo & links ▴";
+        if (open) $("[data-bpanel]", card).hidden = true;
+        else await brandPanel(card);
+      } else if (t.closest("[data-lfetch]") && card) {
+        const r = await api("POST", `/companies/${encodeURIComponent(card.dataset.id)}/logo/fetch`, {});
+        toast(r.status === "found" ? "Logo found." : "No usable logo on their site. Initials are shown.");
+        brandPanel(card);
+      } else if (t.closest("[data-lurl]") && card) {
+        const url = window.prompt("Link to the company's logo image (https://, PNG/JPEG/WebP/GIF/ICO, up to 100 KB):");
+        if (!url) return;
+        const r = await api("POST", `/companies/${encodeURIComponent(card.dataset.id)}/logo/fetch`, { url });
+        toast(r.status === "found" ? "Logo saved." : "That link isn't a usable image. Nothing changed for founders.", { bad: r.status !== "found" });
+        brandPanel(card);
+      } else if (t.closest("[data-lhide]") && card) {
+        await api("POST", `/companies/${encodeURIComponent(card.dataset.id)}/logo/hide`);
+        toast("Logo hidden. Founders see initials.");
+        brandPanel(card);
       } else if (t.closest("[data-profile]") && card) {
         const b = t.closest("[data-profile]");
         const open = b.getAttribute("aria-expanded") === "true";

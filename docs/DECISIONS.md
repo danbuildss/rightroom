@@ -2,6 +2,22 @@
 
 Short records of technical decisions, newest first. Product decisions live in `PLAN.md`.
 
+## 2026-11-15: Company logos and links
+- **Logos are read once from the company's own site and served from ours:**
+  - The server looks at the homepage's apple-touch-icon and icon links (on the company's own domain only), then `/apple-touch-icon.png` and `/favicon.ico`.
+  - It keeps a raster image (PNG, JPEG, WebP, GIF or ICO, checked by its first bytes, at most 100 KB) in `company_logos` (migration 0013) and serves it at `/api/public/logos/:slug` with a versioned URL.
+  - Founders' browsers never contact other sites, and no logo service is used.
+- **No SVG,** because an SVG served from our domain could run script. API responses now also carry `sandbox` in their CSP.
+- **Hourly:** up to 5 verified companies without a checked logo, or not checked for 30 days. A failed recheck or a bad replacement link never removes a logo that's showing.
+- **Dan can** look again, give an image link (any https host, same checks), or hide a logo. Hidden logos stay hidden until Dan sets one.
+- **Links on cards and company pages:**
+  - website (the verified domain)
+  - X and GitHub (the company's aliases)
+  - partner page and docs (sources attached to the company, with its own site first)
+
+  Dan adds or removes them in the back office; partner page and docs must be on the company's own domain. Shown only when we have them.
+- **Brand rule:** a company's logo may appear next to its own name in the app to identify it; never on the marketing site or in a way that implies endorsement.
+
 ## 2026-11-15: Navigation, Home and the bell (Explore, step 3)
 - **`GET /api/app/home`**:
   - counts (follow-ups due, saved, verified signals in the last 7 days)

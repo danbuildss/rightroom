@@ -64,6 +64,7 @@ export async function home(db: D1Database, workspaceId: string, now = new Date()
     .map((r) => ({
       slug: r.co.slug,
       name: r.co.name,
+      logo: r.logo,
       fit: { label: r.fit.label, overall: r.fit.overall },
       why: r.fit.factors[0]?.reason ?? "",
       latest: r.signals[0]
@@ -77,6 +78,7 @@ export async function home(db: D1Database, workspaceId: string, now = new Date()
     .map((r) => ({
       slug: r.co.slug,
       name: r.co.name,
+      logo: r.logo,
       type: r.co.profile_status === "confirmed" ? r.co.org_type : null,
       sectors: r.categories.filter((c) => c.kind === "sector").map((c) => c.label),
       added_at: r.co.first_seen_at,

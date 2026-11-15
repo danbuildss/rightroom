@@ -104,7 +104,7 @@ Every fit score is shown with: "A score shows research-based fit. It is not a pr
 ## 6. Imagery
 
 - Real product screens and typography. No robots, stock handshakes, glowing brains.
-- Never use another company's logo in a way that implies endorsement; no "trusted by" strips.
+- A company's own logo may appear **next to its own name** in the founder app (Explore, Discover, Home, its company page), only to identify it. Our server reads it from the company's own website and serves it from our domain; when there isn't one, we show initials. Never on the marketing site, never in a "trusted by" strip, never in a way that implies the company endorses or works with Rightroom.
 
 ## 7. Lines
 

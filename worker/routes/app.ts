@@ -30,6 +30,7 @@ import {
   updateProfile,
   upsertFounder,
 } from "../db/founders.ts";
+import { home, updates } from "../db/home.ts";
 import { listPipeline, recordSent, removeSaved, saveCompany, timeline, updateSaved } from "../db/pipeline.ts";
 import { NotFoundError } from "../db/util.ts";
 import type { AppEnv, Env } from "../env.ts";
@@ -227,6 +228,11 @@ export function founderApp(options: FounderAppOptions = {}) {
           }),
         );
       })
+
+      // Home: follow-ups due, top matches, this week's verified signals, recently added companies.
+      .get("/home", requireFounder, async (c) => c.json(await home(c.env.DB, c.get("founder").workspace_id)))
+      // The bell: follow-ups due and new verified signals on saved companies.
+      .get("/updates", requireFounder, async (c) => c.json(await updates(c.env.DB, c.get("founder").workspace_id)))
 
       // Every verified company, with search, filters, category counts and pages.
       .get("/explore", requireFounder, async (c) => {

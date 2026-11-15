@@ -41,9 +41,8 @@ type Stage =
 function Logo() {
   return (
     <a className="logo" href="/" aria-label="rightroom home">
-      <svg viewBox="0 0 100 120" aria-hidden="true">
-        <path fill="#0057FF" fillRule="evenodd" d="M0 22 L100 0 L100 120 L0 104 Z M28 44 L70 36 L70 101 L28 96 Z" />
-        <path fill="#0057FF" d="M28 96 L48 98.4 L48 104 L28 106 Z" />
+      <svg viewBox="-4 -4 128 144" aria-hidden="true">
+        <path fill="#0057FF" d="M 0 32 L 120 0 L 120 136 L 43 116 L 84 105 L 84 40 L 34 54 L 34 115 L 0 134 Z" />
       </svg>
       rightroom
     </a>
@@ -275,7 +274,7 @@ function SignIn(props: {
       <p className="fine">
         We only receive your name and email or X handle. We never post for you or read your messages.
         <br />
-        By signing in you agree to our <a href="/terms.html">terms</a> and <a href="/privacy.html">privacy policy</a>.
+        By signing in you agree to our <a href="/terms">terms</a> and <a href="/privacy">privacy policy</a>.
         <br />
         Not invited yet? <a href="/#access">Request access</a>
       </p>

@@ -1,0 +1,7 @@
+# Rightroom. The founder app, back office and API aren't for search engines.
+User-agent: *
+Disallow: /app/
+Disallow: /admin/
+Disallow: /api/
+
+Sitemap: https://rightroom.danewurum01.workers.dev/sitemap.xml

@@ -7,12 +7,19 @@ import { z } from "zod";
 import { ACCESS_STATUSES, accessReviewSchema } from "../../shared/access.ts";
 import { ALIAS_KINDS, COMPANY_STATUSES } from "../../shared/registry.ts";
 import { companyPatchSchema, registryFileSchema, signalPatchSchema } from "../../shared/registry-file.ts";
-import { REVIEW_STATUSES, reviewInputSchema, SIGNAL_TYPE_SLUGS } from "../../shared/signals.ts";
+import {
+  REVIEW_ACTIONS,
+  REVIEW_STATUSES,
+  reviewInputSchema,
+  SIGNAL_TYPE_SLUGS,
+  SIGNAL_TYPES,
+} from "../../shared/signals.ts";
 import { listAccessRequests, reviewAccessRequest } from "../db/access.ts";
 import { auditData } from "../db/audit.ts";
 import { addAlias, DuplicateCompanyError, getCompany, listCompanies, mergeCompanies } from "../db/companies.ts";
 import { ImportRejectedError, importRegistryFile, reviewQueue, updateCompany, updateSignal } from "../db/curation.ts";
 import { companyEvidence, signalEvidence } from "../db/evidence.ts";
+import { adminOverview } from "../db/overview.ts";
 import { DuplicateSignalError, getSignal, listSignals, reviewCompany, reviewSignal } from "../db/signals.ts";
 import { ConflictError, NotFoundError } from "../db/util.ts";
 import type { AppEnv } from "../env.ts";
@@ -66,6 +73,22 @@ const signalQuery = z.object({
   ...pageQuery,
 });
 
+/** Up to 50 reviews in one go. Each is checked by the same rules as a single review; failures don't stop the rest. */
+const batchSchema = z.strictObject({
+  items: z
+    .array(
+      z.object({
+        subject_type: z.enum(["company", "signal"]),
+        id: z.string().min(1).max(60),
+        action: z.enum(REVIEW_ACTIONS),
+        checked_url: z.string().optional(),
+        reason: z.string().optional(),
+      }),
+    )
+    .min(1)
+    .max(50),
+});
+
 const accessQuery = z.object({
   status: z.enum(ACCESS_STATUSES).optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
@@ -87,6 +110,33 @@ export const admin = new Hono<AppEnv>()
   })
 
   .get("/queue", async (c) => c.json({ items: await reviewQueue(c.env.DB) }))
+  .get("/overview", async (c) => c.json(await adminOverview(c.env.DB, c.env)))
+  .get("/signal-types", (c) =>
+    c.json({ types: SIGNAL_TYPE_SLUGS.map((slug) => ({ slug, label: SIGNAL_TYPES[slug].label })) }),
+  )
+  .post("/review/batch", async (c) => {
+    const batch = await body(c, batchSchema);
+    if (batch instanceof Response) return batch;
+    const results = [];
+    for (const { subject_type, id, ...raw } of batch.items) {
+      const review = reviewInputSchema.safeParse(raw);
+      if (!review.success) {
+        results.push({ subject_type, id, ok: false, error: review.error.issues[0]?.message ?? "invalid review" });
+        continue;
+      }
+      try {
+        const status =
+          subject_type === "company"
+            ? await reviewCompany(c.env.DB, id, review.data, c.get("adminEmail"))
+            : await reviewSignal(c.env.DB, id, review.data, c.get("adminEmail"));
+        results.push({ subject_type, id, ok: true, status });
+      } catch (err) {
+        if (!(err instanceof NotFoundError || err instanceof ConflictError)) throw err;
+        results.push({ subject_type, id, ok: false, error: err.message });
+      }
+    }
+    return c.json({ results, ok: results.filter((r) => r.ok).length, failed: results.filter((r) => !r.ok).length });
+  })
   // Read the source page and suggest what supports the record (for the review screens).
   .post("/companies/:id/evidence", async (c) => {
     try {

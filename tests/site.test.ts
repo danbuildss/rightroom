@@ -58,3 +58,23 @@ describe("Vercel copy of the site", () => {
     expect(all.map((h) => h.key)).toContain("Content-Security-Policy");
   });
 });
+
+describe("back office page", () => {
+  const admin = readFileSync("site/admin/index.html", "utf8");
+  const js = readFileSync("site/admin/admin.js", "utf8");
+
+  it("works under the strict CSP and is never indexed", () => {
+    expect(admin).not.toMatch(/<script(?![^>]*\bsrc=)/);
+    expect(admin).not.toMatch(/\son[a-z]+=/i);
+    expect(admin).not.toMatch(/\sstyle=/);
+    expect(admin).toContain('name="robots" content="noindex, nofollow"');
+    expect(headers).toMatch(/\/admin\/\*\n {2}X-Robots-Tag: noindex, nofollow/);
+  });
+
+  it("keeps the key in this tab only and loads nothing from other sites", () => {
+    expect(js).toContain("sessionStorage");
+    expect(js).not.toContain("localStorage");
+    expect(js).not.toMatch(/fetch\(["'`]https?:/);
+    expect(js).not.toMatch(/style="/);
+  });
+});

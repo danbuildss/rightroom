@@ -157,22 +157,23 @@ function FounderHome(props: {
     </>
   );
 
-  if (step >= 1 && step <= 4) {
-    return (
-      <Screen right={right}>
-        <Onboarding
-          step={step}
-          view={stage.view}
-          editing={stage.editing !== undefined}
-          onSave={async (update, next) => {
-            const view = await api.saveProfile({ ...update, step: stage.editing !== undefined ? undefined : next });
-            setStage({ kind: "app", view });
-          }}
-          onBack={() => setStage({ kind: "app", view: stage.view, at: Math.max(1, step - 1) })}
-          onDone={() => setStage({ kind: "app", view: stage.view })}
-        />
-      </Screen>
-    );
+  const editing = stage.editing !== undefined;
+  const onboarding = (
+    <Onboarding
+      step={step}
+      view={stage.view}
+      editing={editing}
+      onSave={async (update, next) => {
+        const view = await api.saveProfile({ ...update, step: editing ? undefined : next });
+        setStage(editing ? { kind: "app", view, tab: "company" } : { kind: "app", view });
+      }}
+      onBack={() => setStage({ kind: "app", view: stage.view, at: Math.max(1, step - 1) })}
+      onDone={() => setStage({ kind: "app", view: stage.view, tab: "company" })}
+    />
+  );
+  // First-time sign-up questions stay full-screen; editing them later happens inside the sidebar layout.
+  if (step >= 1 && step <= 4 && !editing) {
+    return <Screen right={right}>{onboarding}</Screen>;
   }
 
   const deleteAccount = async () => {
@@ -185,7 +186,8 @@ function FounderHome(props: {
     }
   };
 
-  const tab: Tab = stage.tab ?? "home";
+  // While editing answers, nothing else shows; the sidebar marks Your company.
+  const tab: Tab = editing ? "company" : (stage.tab ?? "home");
   const go = (t: Tab) => setStage({ kind: "app", view: stage.view, tab: t });
   const open = (slug: string) => setStage({ ...stage, profile: slug });
   const suggestion = profile.one_liner
@@ -204,7 +206,13 @@ function FounderHome(props: {
         onPickUpdate={(u) =>
           u.kind === "follow_up" ? go("pipeline") : setStage({ ...stage, tab: "home", profile: u.slug })
         }
+        user={{
+          name: who || "You",
+          detail: [founder.email, founder.x_handle ? `@${founder.x_handle}` : null].filter(Boolean).join(" · "),
+        }}
+        onSignOut={signOut}
       >
+        {editing && step >= 1 && step <= 4 ? <div className="company">{onboarding}</div> : null}
         {/* Home, Explore and Discover stay mounted while a company is open, so filters and results are kept. */}
         <div hidden={tab !== "home" || Boolean(stage.profile)}>
           {tab === "home" ? <Home firstName={first} onOpen={open} go={go} /> : null}
@@ -229,7 +237,7 @@ function FounderHome(props: {
             onOpenCompany={(slug) => setStage({ ...stage, tab: "explore", profile: slug })}
           />
         ) : null}
-        {tab !== "company" ? null : (
+        {tab !== "company" || editing ? null : (
           <div className="company">
             <h1>Your company</h1>
             <p className="sub">

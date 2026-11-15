@@ -59,3 +59,51 @@ export const api = {
   signOut: () => call<{ ok: true }>("POST", "/signout", {}),
   deleteAccount: () => call<{ ok: true }>("DELETE", "/account"),
 };
+
+export interface FactorView {
+  factor: string;
+  label: string;
+  weight: number;
+  score: number;
+  reason: string;
+}
+export interface SignalView {
+  type: string;
+  type_label: string;
+  title: string;
+  claim: string;
+  excerpt: string;
+  event_date: string | null;
+  last_verified_at: string;
+  status: "verified" | "stale";
+  sources: { url: string; title: string; role: string }[];
+}
+export interface DiscoverResult {
+  slug: string;
+  name: string;
+  domain: string;
+  description: string | null;
+  categories: { slug: string; label: string; kind: string }[];
+  fit: {
+    overall: number | null;
+    label: "strong" | "potential" | "needs_verification";
+    evidence: "high" | "medium" | "low";
+    why: string;
+    factors: FactorView[];
+  };
+  signals: SignalView[];
+}
+export interface DiscoverResponse {
+  understood: { categories: { slug: string; label: string }[]; goals: string[]; places: string[] };
+  verified_total: number;
+  results: DiscoverResult[];
+  categories: { slug: string; label: string; kind: string }[];
+}
+
+export function discover(params: { q: string; cats?: string[]; goals?: string[]; category?: string }) {
+  const search = new URLSearchParams({ q: params.q });
+  if (params.cats) search.set("cats", params.cats.join(","));
+  if (params.goals) search.set("goals", params.goals.join(","));
+  if (params.category) search.set("category", params.category);
+  return call<DiscoverResponse>("GET", `/discover?${search}`);
+}

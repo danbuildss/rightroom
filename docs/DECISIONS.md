@@ -2,6 +2,18 @@
 
 Short records of technical decisions, newest first. Product decisions live in `PLAN.md`.
 
+## 2026-11-15: Discover (rule-based, no AI)
+- **`GET /api/app/discover`** (founder session) ranks verified, non-sample companies only. Searches are read with word lists (`shared/discover.ts`): sectors and technologies map to category slugs, partnership words to goals. Places are recognised but not filtered ("location filter coming soon"), because we don't store where companies operate yet. "US"/"UK" only count in capitals, so "help us" isn't a place.
+- **Scores use the fixed formula** (weights 30/25/20/15/10) with factor scores worked out from data we hold:
+  - Alignment: shared categories and description words.
+  - Mutual value: the founder's goals matched to fresh signal types.
+  - Readiness: explicit or implied intent signals and their freshness.
+  - Contact: a public partner page; capped at 3 until we hold named contacts.
+  - Feasibility: shared technology or ecosystem.
+  - Every factor carries a one-line reason.
+- **Labels:** Strong ≥ 75, Potential 55–74; lower scores aren't listed. With no verified signal, evidence is Low and the card says "Needs verification" instead of a score (shown only when the company clearly matches the search).
+- **The founder can correct what was read** (remove tokens; `cats` and `goals` override the parse) and filter by a sector chip. With no search, Discover ranks for the founder's onboarding answers.
+
 ## 2026-11-15: Founder sign-in and onboarding (Privy)
 - **Privy for sign-in (X, Google, email), wallets off.** The founder app (`app/`, React + Vite) is built into `site/app/` at build and deploy time (`npm run build:app`; the output is git-ignored). Privy's React library is the supported route; its vanilla library says it isn't for general use.
 - **The Worker checks Privy's identity token itself** (ES256, issuer `privy.io`, audience = app ID, Privy's published keys) and never trusts identity sent by the browser. No Privy secret is needed.

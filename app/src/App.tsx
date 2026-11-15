@@ -1,6 +1,7 @@
 import { useIdentityToken, useLoginWithEmail, useLoginWithOAuth, usePrivy } from "@privy-io/react-auth";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, api, type Identity, type View } from "./api.ts";
+import { Discover } from "./Discover.tsx";
 
 const GOALS = [
   ["integrations", "Integrations", "Build into each other's product"],
@@ -26,7 +27,7 @@ type Stage =
   | { kind: "code"; email: string }
   | { kind: "checking" }
   | { kind: "not_invited"; identity: Identity; sent?: boolean }
-  | { kind: "app"; view: View; editing?: number; at?: number };
+  | { kind: "app"; view: View; editing?: number; at?: number; tab?: "discover" | "company" };
 
 function Logo() {
   return (
@@ -410,59 +411,106 @@ function FounderHome(props: {
     }
   };
 
+  const tab = stage.tab ?? "discover";
+  const go = (t: "discover" | "company") => setStage({ kind: "app", view: stage.view, tab: t });
+  const suggestion = profile.one_liner
+    ? `e.g. Companies that could integrate with "${profile.one_liner.slice(0, 60)}" and help us reach more customers`
+    : "e.g. Payments companies that could integrate our API and help us reach more businesses";
+
   return (
-    <Screen right={right}>
-      <h1>You're in, {first}.</h1>
-      <p className="sub">Your workspace is private to you. Here's what we have:</p>
-      <ul className="checklist">
-        <li>
-          <div>
-            <span className="k">You</span>
-            {founder.name ?? "—"}
-            {founder.role ? ` · ${founder.role}` : ""}
-          </div>
-          <button type="button" className="linkbtn" onClick={() => setStage({ ...stage, editing: 1 })}>
-            Edit
+    <div className="shell">
+      <aside className="side">
+        <Logo />
+        <nav aria-label="Workspace">
+          <button
+            type="button"
+            className={tab === "discover" ? "navi on" : "navi"}
+            aria-current={tab === "discover" ? "page" : undefined}
+            onClick={() => go("discover")}
+          >
+            Discover
           </button>
-        </li>
-        <li>
-          <div>
-            <span className="k">Company</span>
-            {[profile.company_name, profile.website?.replace(/^https?:\/\//, "")].filter(Boolean).join(" · ") || "—"}
-          </div>
-          <button type="button" className="linkbtn" onClick={() => setStage({ ...stage, editing: 2 })}>
-            Edit
+          <span className="navi off">
+            Saved <span className="soon">SOON</span>
+          </span>
+          <span className="navi off">
+            Pipeline <span className="soon">SOON</span>
+          </span>
+          <button
+            type="button"
+            className={tab === "company" ? "navi on" : "navi"}
+            aria-current={tab === "company" ? "page" : undefined}
+            onClick={() => go("company")}
+          >
+            Your company
           </button>
-        </li>
-        <li>
-          <div>
-            <span className="k">Partners wanted</span>
-            {label(GOALS, profile.goals) || "—"}
-          </div>
-          <button type="button" className="linkbtn" onClick={() => setStage({ ...stage, editing: 3 })}>
-            Edit
+        </nav>
+        <div className="sidefoot">
+          {founder.name ?? founder.email ?? (founder.x_handle ? `@${founder.x_handle}` : "")}
+          <button type="button" className="linkbtn" onClick={signOut}>
+            Sign out
           </button>
-        </li>
-        <li>
-          <div>
-            <span className="k">Markets</span>
-            {label(MARKETS, profile.markets) || "—"}
+        </div>
+      </aside>
+      <main className="wmain">
+        {tab === "discover" ? (
+          <Discover suggestion={suggestion} />
+        ) : (
+          <div className="company">
+            <h1>Your company</h1>
+            <p className="sub">
+              Hi {first}. Your workspace is private to you. Discover uses these answers to rank companies.
+            </p>
+            <ul className="checklist">
+              <li>
+                <div>
+                  <span className="k">You</span>
+                  {founder.name ?? "—"}
+                  {founder.role ? ` · ${founder.role}` : ""}
+                </div>
+                <button type="button" className="linkbtn" onClick={() => setStage({ ...stage, editing: 1 })}>
+                  Edit
+                </button>
+              </li>
+              <li>
+                <div>
+                  <span className="k">Company</span>
+                  {[profile.company_name, profile.website?.replace(/^https?:\/\//, "")].filter(Boolean).join(" · ") ||
+                    "—"}
+                  {profile.one_liner ? <span className="d">{profile.one_liner}</span> : null}
+                </div>
+                <button type="button" className="linkbtn" onClick={() => setStage({ ...stage, editing: 2 })}>
+                  Edit
+                </button>
+              </li>
+              <li>
+                <div>
+                  <span className="k">Partners wanted</span>
+                  {label(GOALS, profile.goals) || "—"}
+                </div>
+                <button type="button" className="linkbtn" onClick={() => setStage({ ...stage, editing: 3 })}>
+                  Edit
+                </button>
+              </li>
+              <li>
+                <div>
+                  <span className="k">Markets</span>
+                  {label(MARKETS, profile.markets) || "—"}
+                </div>
+                <button type="button" className="linkbtn" onClick={() => setStage({ ...stage, editing: 4 })}>
+                  Edit
+                </button>
+              </li>
+            </ul>
+            <p className="fine">
+              <button type="button" className="linkbtn" onClick={deleteAccount}>
+                Delete my account and data
+              </button>
+            </p>
           </div>
-          <button type="button" className="linkbtn" onClick={() => setStage({ ...stage, editing: 4 })}>
-            Edit
-          </button>
-        </li>
-      </ul>
-      <div className="notice">
-        Discover opens next. You'll hear from us when your first matches are ready.
-        <span className="tag">Coming soon</span>
-      </div>
-      <p className="fine">
-        <button type="button" className="linkbtn" onClick={deleteAccount}>
-          Delete my account and data
-        </button>
-      </p>
-    </Screen>
+        )}
+      </main>
+    </div>
   );
 }
 

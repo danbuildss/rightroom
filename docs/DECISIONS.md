@@ -2,6 +2,15 @@
 
 Short records of technical decisions, newest first. Product decisions live in `PLAN.md`.
 
+## 2026-11-15: Founder sign-in and onboarding (Privy)
+- **Privy for sign-in (X, Google, email), wallets off.** The founder app (`app/`, React + Vite) is built into `site/app/` at build and deploy time (`npm run build:app`; the output is git-ignored). Privy's React library is the supported route; its vanilla library says it isn't for general use.
+- **The Worker checks Privy's identity token itself** (ES256, issuer `privy.io`, audience = app ID, Privy's published keys) and never trusts identity sent by the browser. No Privy secret is needed.
+- **Rightroom's own session:** a random cookie (`__Host-rr_session`, HttpOnly, Secure, SameSite=Lax, 30 days); only its SHA-256 is stored. Changes must come from this site's pages as JSON (Origin check), which blocks cross-site form posts.
+- **Invite-only:** a session is created only for identities on the invited list (email or X handle) or founders who already signed up. Access requests now accept an X handle; email became optional (migration 0007 rebuilds the table).
+- **Each founder gets a private workspace** (`founders`, `founder_sessions`, `founder_profiles` all carry `workspace_id`); deleting the account deletes the workspace and everything in it.
+- **`/app` has its own Content Security Policy** allowing Privy (`auth.privy.io`) and Cloudflare Turnstile, which Privy uses for bot checks. Privy's wallet list request to WalletConnect stays blocked; it isn't needed with wallets off.
+- **Dependencies pinned exactly, at versions at least two weeks old.** `npm audit` flags issues in wallet libraries bundled inside Privy (ws, old zod, uuid, decode-uri-component); they're denial-of-service class and in wallet code we don't use. Revisit when Privy updates.
+
 ## 2026-11-15: Back office
 - **Static pages at `/admin`** (plain JavaScript, no build, same strict CSP), calling the existing admin API with the admin key as a Bearer token. The key is kept in `sessionStorage` (this tab only), never in `localStorage` or a cookie. Admin pages send `noindex` and `no-store`. Google sign-in replaces the key later.
 - **`POST /api/admin/review/batch`** applies up to 50 reviews, each under the same rules as a single review; failures are reported per item and don't stop the rest. Undo uses the existing `reopen` action, so the review log keeps everything.

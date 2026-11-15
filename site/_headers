@@ -9,3 +9,7 @@
 /admin/*
   X-Robots-Tag: noindex, nofollow
   Cache-Control: no-store
+/app/*
+  ! Content-Security-Policy
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https:; connect-src 'self' https://auth.privy.io https://*.rpc.privy.systems; frame-src https://auth.privy.io https://challenges.cloudflare.com; child-src https://auth.privy.io https://challenges.cloudflare.com; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'
+  X-Robots-Tag: noindex, nofollow

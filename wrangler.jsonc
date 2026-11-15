@@ -30,6 +30,8 @@
   // Add them in the dashboard as type "Secret"; secrets survive deploys.
   "vars": {
     "ENVIRONMENT": "production",
-    "ADMIN_NAME": "dan"
+    "ADMIN_NAME": "dan",
+    // Founder sign-in through Privy. The app ID is public (it's in the browser code too).
+    "PRIVY_APP_ID": "cmwhggfps01qj0fjs8k8w1zrt"
   }
 }

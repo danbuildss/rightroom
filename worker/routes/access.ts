@@ -35,7 +35,8 @@ export const accessApi = new Hono<AppEnv>().post(
     // A filled-in honeypot is a bot: answer as if it worked, store nothing.
     if (!parsed.data.company_fax) {
       try {
-        await submitAccessRequest(c.env.DB, parsed.data);
+        const { company_fax: _hp, ...submission } = parsed.data;
+        await submitAccessRequest(c.env.DB, submission);
       } catch (err) {
         if (err instanceof TooManyRequestsError) {
           return jsonError(c, 429, "rate_limited", "We're getting a lot of requests. Please try again in an hour.");

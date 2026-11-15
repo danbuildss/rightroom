@@ -28,24 +28,26 @@ export function grokSpend(env: Env, spent: number) {
 }
 
 export async function adminOverview(db: D1Database, env: Env) {
-  const [companies, signals, publicCompanies, inboxNew, accessNew, sources, lastRun, spent] = await Promise.all([
-    byStatus(db, "companies"),
-    byStatus(db, "signal_events"),
-    count(db, "SELECT COUNT(*) AS n FROM companies WHERE status = 'verified' AND is_sample = 0"),
-    count(db, "SELECT COUNT(*) AS n FROM collected_items WHERE status = 'new'"),
-    count(db, "SELECT COUNT(*) AS n FROM access_requests WHERE status = 'new'"),
-    db
-      .prepare(
-        `SELECT COUNT(*) AS total, COALESCE(SUM(enabled), 0) AS enabled,
+  const [companies, signals, publicCompanies, inboxNew, accessNew, founders, sources, lastRun, spent] =
+    await Promise.all([
+      byStatus(db, "companies"),
+      byStatus(db, "signal_events"),
+      count(db, "SELECT COUNT(*) AS n FROM companies WHERE status = 'verified' AND is_sample = 0"),
+      count(db, "SELECT COUNT(*) AS n FROM collected_items WHERE status = 'new'"),
+      count(db, "SELECT COUNT(*) AS n FROM access_requests WHERE status = 'new'"),
+      count(db, "SELECT COUNT(*) AS n FROM founders"),
+      db
+        .prepare(
+          `SELECT COUNT(*) AS total, COALESCE(SUM(enabled), 0) AS enabled,
            COALESCE(SUM(CASE WHEN enabled = 1 AND consecutive_failures > 0 THEN 1 ELSE 0 END), 0) AS failing
          FROM watched_sources`,
-      )
-      .first<{ total: number; enabled: number; failing: number }>(),
-    db
-      .prepare("SELECT started_at, status FROM ingestion_runs ORDER BY started_at DESC LIMIT 1")
-      .first<{ started_at: string; status: string }>(),
-    grokSpendThisMonth(db),
-  ]);
+        )
+        .first<{ total: number; enabled: number; failing: number }>(),
+      db
+        .prepare("SELECT started_at, status FROM ingestion_runs ORDER BY started_at DESC LIMIT 1")
+        .first<{ started_at: string; status: string }>(),
+      grokSpendThisMonth(db),
+    ]);
   const total = sources?.total ?? 0;
   const enabled = sources?.enabled ?? 0;
   return {
@@ -57,6 +59,7 @@ export async function adminOverview(db: D1Database, env: Env) {
     waiting: companies.needs_review + signals.needs_review,
     inbox_new: inboxNew,
     access_requests_new: accessNew,
+    founders,
     sources: { total, enabled, paused: total - enabled, failing: sources?.failing ?? 0 },
     last_run: lastRun ?? null,
     spend: grokSpend(env, spent),

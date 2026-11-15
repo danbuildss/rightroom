@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "files": {
-    "includes": ["shared/**", "scripts/**", "tests/**", "worker/**", "migrations/**", "*.json", "samples/**"]
+    "includes": ["app/**", "shared/**", "scripts/**", "tests/**", "worker/**", "migrations/**", "*.json", "samples/**"]
   },
   "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 120 },
   "linter": { "enabled": true, "rules": { "preset": "recommended" } }

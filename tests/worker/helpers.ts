@@ -41,3 +41,47 @@ export async function call(
   if (init.body && !headers.has("content-type")) headers.set("content-type", "application/json");
   return app.fetch(new Request(`https://talo.example${path}`, { ...init, headers }), { ...env, ...overrides } as Env);
 }
+
+let founderN = 0;
+/** A signed-in founder with a private workspace and profile (test data). Returns the cookie and workspace id. */
+export async function founderSession(
+  profile: {
+    one_liner?: string;
+    goals?: string[];
+    name?: string;
+    role?: string;
+    company_name?: string;
+    website?: string;
+  } = {},
+) {
+  founderN += 1;
+  const ws = `ws-test-founder-${founderN}-${crypto.randomUUID().slice(0, 8)}`;
+  const token = `test-founder-session-${crypto.randomUUID()}`;
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
+  const hash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  const at = new Date().toISOString();
+  const far = new Date(Date.now() + 86_400_000).toISOString();
+  const fid = `f-${ws}`;
+  await env.DB.batch([
+    env.DB.prepare(
+      "INSERT INTO workspaces (id, name, owner_email, created_at) VALUES (?, 'Test founder', 'f@test.example', ?)",
+    ).bind(ws, at),
+    env.DB.prepare(
+      "INSERT INTO founders (id, workspace_id, privy_did, name, role, created_at, last_sign_in_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    ).bind(fid, ws, `did:privy:${ws}`, profile.name ?? "Ada Test", profile.role ?? "CEO", at, at),
+    env.DB.prepare(
+      "INSERT INTO founder_profiles (workspace_id, company_name, website, one_liner, goals_json, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+    ).bind(
+      ws,
+      profile.company_name ?? "Test Co",
+      profile.website ?? "https://testco.example",
+      profile.one_liner ?? "Payments API for small businesses",
+      JSON.stringify(profile.goals ?? ["integrations"]),
+      at,
+    ),
+    env.DB.prepare(
+      "INSERT INTO founder_sessions (id, workspace_id, founder_id, created_at, expires_at) VALUES (?, ?, ?, ?, ?)",
+    ).bind(hash, ws, fid, at, far),
+  ]);
+  return { cookie: `__Host-rr_session=${token}`, workspaceId: ws };
+}

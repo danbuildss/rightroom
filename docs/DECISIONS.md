@@ -2,6 +2,12 @@
 
 Short records of technical decisions, newest first. Product decisions live in `PLAN.md`.
 
+## 2026-11-15: Draft introduction
+- **Drafts come from templates, not AI** (`shared/draft.ts`): first message, shorter and follow-up. They use only the company's latest verified signal, a verified named contact (else "the {company} team") and the founder's own answers.
+- **The one sentence about fit is left in [brackets] for the founder to write**, because we can't verify what they offer. Copy and "I sent it" warn while brackets remain.
+- **`founder_drafts` (migration 0009)** is private to the workspace. "Sent" only records that the founder said they sent it, and when. Rightroom sends nothing.
+- **API:** `GET /api/app/companies/:slug/draft` (generate, not saved; `variant`, `to`, `via`), `GET/POST /api/app/companies/:slug/drafts`, `PATCH/DELETE /api/app/drafts/:id`, all workspace-scoped (another founder's draft answers 404).
+
 ## 2026-11-15: Company intelligence
 - **`GET /api/app/companies/:slug`** (founder session): one verified company, scored for that founder, with verified signals, **verified** contacts only and Rightroom's suggestions.
 - **Suggestions are rules, not AI** (`shared/intel.ts`): "for you", "for them" (from the founder's own one-liner), suggested role (by goal, plus "whoever runs the partner program" when there is one) and best approach (partner program, then a verified channel, then the website). Always labelled "Our suggestion", with what they were built from.

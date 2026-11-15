@@ -132,3 +132,41 @@ export interface CompanyIntel {
 export function companyIntel(slug: string) {
   return call<CompanyIntel>("GET", `/companies/${encodeURIComponent(slug)}`);
 }
+
+export type Variant = "first" | "shorter" | "follow_up";
+export interface GeneratedDraft {
+  subject: string;
+  message: string;
+  variant: Variant;
+  recipient: string;
+  channel: { label: string; url: string };
+  options: { people: { index: number; label: string }[]; channels: { index: number; label: string; url: string }[] };
+  sources: { kind: "verified" | "yours"; text: string; url: string | null }[];
+}
+export interface SavedDraft {
+  id: string;
+  variant: Variant;
+  recipient: string;
+  channel_label: string | null;
+  channel_url: string | null;
+  subject: string | null;
+  message: string;
+  status: "draft" | "sent";
+  sent_at: string | null;
+  created_at: string;
+}
+
+export const drafts = {
+  generate: (slug: string, p: { variant: Variant; to?: number | "team"; via?: number }) => {
+    const q = new URLSearchParams({ variant: p.variant });
+    if (p.to !== undefined) q.set("to", String(p.to));
+    if (p.via !== undefined) q.set("via", String(p.via));
+    return call<GeneratedDraft>("GET", `/companies/${encodeURIComponent(slug)}/draft?${q}`);
+  },
+  list: (slug: string) => call<{ drafts: SavedDraft[] }>("GET", `/companies/${encodeURIComponent(slug)}/drafts`),
+  save: (slug: string, d: Record<string, unknown>) =>
+    call<{ draft: SavedDraft }>("POST", `/companies/${encodeURIComponent(slug)}/drafts`, d),
+  update: (id: string, d: Record<string, unknown>) =>
+    call<{ draft: SavedDraft }>("PATCH", `/drafts/${encodeURIComponent(id)}`, d),
+  remove: (id: string) => call<{ ok: true }>("DELETE", `/drafts/${encodeURIComponent(id)}`),
+};

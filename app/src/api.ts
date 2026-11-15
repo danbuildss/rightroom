@@ -107,3 +107,28 @@ export function discover(params: { q: string; cats?: string[]; goals?: string[];
   if (params.category) search.set("category", params.category);
   return call<DiscoverResponse>("GET", `/discover?${search}`);
 }
+
+export interface CompanyIntel {
+  company: DiscoverResult & { last_verified_at: string | null };
+  people: {
+    name: string;
+    role: string;
+    source_url: string;
+    confidence: "high" | "medium" | "low";
+    last_checked_at: string | null;
+  }[];
+  channels: { label: string; url: string; source_url: string; last_checked_at: string | null }[];
+  suggestions: {
+    for_you: string;
+    for_them: string;
+    suggested_role: string;
+    approach: string;
+    approach_why: string;
+    based_on: string;
+  };
+  goals: string[];
+}
+
+export function companyIntel(slug: string) {
+  return call<CompanyIntel>("GET", `/companies/${encodeURIComponent(slug)}`);
+}

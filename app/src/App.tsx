@@ -1,6 +1,7 @@
 import { useIdentityToken, useLoginWithEmail, useLoginWithOAuth, usePrivy } from "@privy-io/react-auth";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, api, type Identity, type View } from "./api.ts";
+import { Company } from "./Company.tsx";
 import { Discover } from "./Discover.tsx";
 
 const GOALS = [
@@ -27,7 +28,7 @@ type Stage =
   | { kind: "code"; email: string }
   | { kind: "checking" }
   | { kind: "not_invited"; identity: Identity; sent?: boolean }
-  | { kind: "app"; view: View; editing?: number; at?: number; tab?: "discover" | "company" };
+  | { kind: "app"; view: View; editing?: number; at?: number; tab?: "discover" | "company"; profile?: string };
 
 function Logo() {
   return (
@@ -453,9 +454,13 @@ function FounderHome(props: {
         </div>
       </aside>
       <main className="wmain">
-        {tab === "discover" ? (
-          <Discover suggestion={suggestion} />
-        ) : (
+        <div hidden={tab !== "discover" || Boolean(stage.profile)}>
+          <Discover suggestion={suggestion} onOpen={(slug) => setStage({ ...stage, tab: "discover", profile: slug })} />
+        </div>
+        {tab === "discover" && stage.profile ? (
+          <Company slug={stage.profile} onBack={() => setStage({ ...stage, profile: undefined })} />
+        ) : null}
+        {tab !== "company" ? null : (
           <div className="company">
             <h1>Your company</h1>
             <p className="sub">

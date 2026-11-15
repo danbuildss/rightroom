@@ -13,7 +13,7 @@ import type { JWTVerifyGetKey } from "jose";
 import { z } from "zod";
 import { GOALS, profileUpdateSchema } from "../../shared/founder.ts";
 import { isInvited, submitAccessRequest, TooManyRequestsError } from "../db/access.ts";
-import { discover } from "../db/discover.ts";
+import { companyIntel, discover } from "../db/discover.ts";
 import {
   createSession,
   deleteFounderWorkspace,
@@ -177,6 +177,11 @@ export function founderApp(options: FounderAppOptions = {}) {
             category: q.data.category,
           }),
         );
+      })
+
+      .get("/companies/:slug", requireFounder, async (c) => {
+        const intel = await companyIntel(c.env.DB, c.get("founder").workspace_id, c.req.param("slug"));
+        return intel ? c.json(intel) : jsonError(c, 404, "not_found", "Company not found.");
       })
 
       .put("/profile", requireFounder, async (c) => {

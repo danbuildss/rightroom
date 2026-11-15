@@ -169,3 +169,8 @@ textarea{min-height:76px;resize:vertical}
 a.btn{text-decoration:none}
 .invite-form{margin-bottom:14px}
 .invite-form .form-grid{margin-top:6px}
+.inline-form.flat{border-top:1px dashed var(--line);padding:4px 0 6px;background:none;margin-top:10px}
+.mt-s{margin-top:8px}
+#co-search input{flex:1;min-width:0}
+.pad-b{padding-bottom:16px}
+.item .ih{padding-bottom:16px}

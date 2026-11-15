@@ -176,6 +176,8 @@ export interface DiscoverCompany {
   }[];
   /** Website the company was verified against. */
   domain: string;
+  /** Verified contacts Dan added (shared/contacts.ts). Optional: none means none verified. */
+  contacts?: { people: { role: string; confidence: "high" | "medium" | "low" }[]; channels: number };
 }
 
 export interface DiscoverContext {
@@ -274,12 +276,21 @@ export function scoreCompany(c: DiscoverCompany, ctx: DiscoverContext, now = new
         ? `No recent verified signal matches ${list(ctx.goals.map((g) => GOAL_LABELS[g].toLowerCase()))} yet.`
         : "Add partnership goals to judge this.";
 
-  // 4. Contact accessibility: no named contacts in our data yet, so this stays at 3 or below.
+  // 4. Contact accessibility: verified named people and official channels Dan approved.
+  const people = c.contacts?.people ?? [];
+  const channels = c.contacts?.channels ?? 0;
   const partnerPage = signals.some((s) => s.source_kinds.includes("partner_page"));
-  const contact = partnerPage ? 3 : 2;
-  const contactReason = partnerPage
-    ? "Public partner page; no named contact yet."
-    : "Official website only; no named contact yet.";
+  const strongPerson = people.find((p) => p.confidence === "high");
+  const contact = strongPerson ? 5 : people.length ? 4 : channels || partnerPage ? 3 : 2;
+  const contactReason = strongPerson
+    ? `Verified named contact (${strongPerson.role}) with a public source.`
+    : people[0]
+      ? `Named contact (${people[0].role}) from a public source; confidence ${people[0].confidence}.`
+      : channels
+        ? "Official channel verified; no named contact yet."
+        : partnerPage
+          ? "Public partner page; no named contact yet."
+          : "Official website only; no named contact yet.";
 
   // 5. Execution feasibility: shared technology or ecosystem.
   const techSlugs = c.categories.filter((x) => x.kind !== "sector").map((x) => x.slug);

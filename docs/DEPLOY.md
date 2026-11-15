@@ -116,4 +116,4 @@ X handle). Everyone else sees "You're not on the pilot list yet" and can request
 has signed up. Deleting an account in the app removes everything Rightroom stores; their login record at Privy can be
 removed in the Privy dashboard (Users).
 
-For founder sign-in on the Vercel address, add that address (for example `https://<project>.vercel.app`, or the custom domain later) to **Allowed domains** in the Privy dashboard. If the founder API ever rejects changes from Vercel with "Requests must come from Rightroom", add the host to `APP_ORIGIN_HOSTS` in `wrangler.jsonc` (comma-separated).
+The main address is **https://rightroom-alpha.vercel.app** (share previews, sitemap and robots.txt point there; the Cloudflare address keeps working). For founder sign-in on it, add that address (or the custom domain later) to **Allowed domains** in the Privy dashboard. If the founder API ever rejects changes from Vercel with "Requests must come from Rightroom", add the host to `APP_ORIGIN_HOSTS` in `wrangler.jsonc` (comma-separated).

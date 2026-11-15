@@ -4,6 +4,7 @@ import { runDueSources } from "./db/collector.ts";
 import { discover } from "./db/discovery.ts";
 import { enrichMissing } from "./db/enrich.ts";
 import { fetchMissingLogos } from "./db/logos.ts";
+import { findMissingContacts } from "./db/people.ts";
 import type { Env } from "./env.ts";
 
 const app = createApp();
@@ -37,6 +38,13 @@ export default {
       enrichMissing(env.DB, { limit: 5 }).then((r) => {
         const n = r.reduce((sum, x) => sum + x.added.length, 0);
         if (r.length) console.log(`website details: ${r.length} companies read, ${n} details added`);
+      }),
+    );
+    // Points of contact: 3 companies' own team/about pages an hour; suggestions wait for Dan.
+    ctx.waitUntil(
+      findMissingContacts(env.DB, { limit: 3 }).then((r) => {
+        const n = r.reduce((sum, x) => sum + x.added, 0);
+        if (r.length) console.log(`contacts: ${r.length} companies read, ${n} suggestions`);
       }),
     );
     // Logos: a few verified companies without a checked logo (or not checked for a month) each hour.

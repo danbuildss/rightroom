@@ -209,3 +209,4 @@ a.btn{text-decoration:none}
 .cand.on{border-color:var(--blue);box-shadow:0 0 0 3px rgba(0,87,255,.08)}
 .cname{font:650 16px Geist,sans-serif;border:1px solid transparent;border-radius:8px;padding:4px 6px;margin:0 0 2px -6px;width:100%;max-width:420px;background:transparent}
 .cname:hover,.cname:focus{border-color:var(--line);background:#fff}
+tr.on td{background:var(--blue-tint)}

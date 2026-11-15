@@ -220,6 +220,7 @@ export interface ExploreCard {
   description: string | null;
   logo: string | null;
   links: Links;
+  poc: { name: string; role: string } | null;
   sectors: { slug: string; label: string }[];
   profile: { type: OrgType | null; country: string | null; stage: string | null; audiences: string[] } | null;
   partnership_types: GoalKey[];

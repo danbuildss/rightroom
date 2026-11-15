@@ -2,6 +2,15 @@
 
 Short records of technical decisions, newest first. Product decisions live in `PLAN.md`.
 
+## 2026-11-15: Points of contact (data engine, part C)
+- **Where contacts are found:**
+  - **The company's own pages:** the homepage plus up to 2 team, about or leadership pages it links to. Named people come from JSON-LD `Person` (with `jobTitle`), or a team grid where a name is followed by a role. Only roles worth contacting are kept (founder, CEO/CTO/COO, partnerships, BD, developer relations, ecosystem, alliances). A role title is never taken as a name. Confidence: high.
+  - **Official channels:** the partner page and contact form the website reader already found.
+  - **Grok company research:** up to 3 people per company, kept only when the evidence post is among xAI's citations **and** was posted by that same person. Confidence: medium; the source is their post.
+- **Everything is a suggestion** (`company_contacts.status = needs_review`, `created_by` = website-reader or grok), never duplicated per company. Dan approves or rejects in batches on Back office → Contacts. Founders see only approved contacts. Never a guessed email.
+- **When:** 3 companies are read per hour, re-read after 30 days (`company_enrichment.contacts_checked_at`, migration 0017). Newly approved companies are read straight away.
+- **Explore cards** show the approved point of contact ("Contact: name · role"), choosing the highest confidence first.
+
 ## 2026-11-15: Finding early-stage teams (data engine, part B)
 - **Sources, all free public APIs, each run about once a day by the hourly job (or "Find new teams now"):**
   - Hacker News "Show HN" posts from the last 7 days (hn.algolia.com search API), filtered by our sector words

@@ -69,6 +69,7 @@ export async function explore(db: D1Database, workspaceId: string, input: Explor
         description: r.co.description,
         logo: r.logo,
         links: r.links,
+        poc: r.poc,
         sectors: sectors.map((c) => ({ slug: c.slug, label: c.label })),
         profile: confirmed
           ? {

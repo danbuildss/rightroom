@@ -90,7 +90,7 @@ describe("privacy and terms pages", () => {
     }
     expect(html).toContain('href="/privacy"');
     expect(html).toContain('href="/terms"');
-    expect(readFileSync("app/src/App.tsx", "utf8")).toContain('href="/privacy"');
+    expect(readFileSync("app/src/Auth.tsx", "utf8")).toContain('href="/privacy"');
   });
 
   it("contain no unfilled placeholders and say plainly what's still missing", () => {
@@ -121,7 +121,7 @@ describe("brand and sharing", () => {
   ];
 
   it("uses Dan's logo everywhere, and none of the old drawing", () => {
-    for (const f of [...pages.filter((p) => !p.startsWith("app/")), "site/favicon.svg", "app/src/App.tsx"]) {
+    for (const f of [...pages.filter((p) => !p.startsWith("app/")), "site/favicon.svg", "app/src/ui.tsx"]) {
       const src = readFileSync(f, "utf8");
       expect(src, f).not.toContain("M0 22 L100 0");
       if (f !== "site/thanks.html" && f !== "site/404.html" && f !== "site/privacy.html" && f !== "site/terms.html")

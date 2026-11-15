@@ -2,6 +2,13 @@
 
 Short records of technical decisions, newest first. Product decisions live in `PLAN.md`.
 
+## 2026-11-15: Saved and Pipeline
+- **`founder_saved` + `founder_pipeline_events` (migration 0010)**, private per workspace. Stages: Shortlisted → Contacted → In discussion → Partnered. Saving is idempotent; a company can be saved once per founder.
+- **"I sent it" updates the pipeline:** it saves the company if needed, moves it from Shortlisted to Contacted (never backwards), and suggests a follow-up 7 days later only if none is set. Every change goes in the timeline.
+- **Follow-ups are reminders inside the app only.** "Due" means today or earlier, and Partnered companies don't count. Nothing is emailed.
+- **API:** `POST /api/app/companies/:slug/save`, `GET /api/app/pipeline` (items + due count), `PATCH/DELETE /api/app/pipeline/:id`, `GET /api/app/pipeline/:id/timeline`, all workspace-scoped (another founder's items answer 404). Discover results and the company page include the saved stage.
+- Cards don't show the fit label, to keep the board fast; the company page has it.
+
 ## 2026-11-15: Draft introduction
 - **Drafts come from templates, not AI** (`shared/draft.ts`): first message, shorter and follow-up. They use only the company's latest verified signal, a verified named contact (else "the {company} team") and the founder's own answers.
 - **The one sentence about fit is left in [brackets] for the founder to write**, because we can't verify what they offer. Copy and "I sent it" warn while brackets remain.

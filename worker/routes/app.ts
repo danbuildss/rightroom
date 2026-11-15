@@ -13,6 +13,7 @@ import type { JWTVerifyGetKey } from "jose";
 import { z } from "zod";
 import { buildDraft, draftPatchSchema, draftSaveSchema, VARIANTS } from "../../shared/draft.ts";
 import { GOALS, profileUpdateSchema } from "../../shared/founder.ts";
+import { pipelinePatchSchema } from "../../shared/pipeline.ts";
 import { isInvited, submitAccessRequest, TooManyRequestsError } from "../db/access.ts";
 import { companyIntel, discover } from "../db/discover.ts";
 import { deleteDraft, listDrafts, saveDraft, updateDraft, verifiedCompanyId } from "../db/drafts.ts";
@@ -27,6 +28,7 @@ import {
   updateProfile,
   upsertFounder,
 } from "../db/founders.ts";
+import { listPipeline, recordSent, removeSaved, saveCompany, timeline, updateSaved } from "../db/pipeline.ts";
 import { NotFoundError } from "../db/util.ts";
 import type { AppEnv, Env } from "../env.ts";
 import { jsonError } from "../http.ts";
@@ -274,7 +276,17 @@ export function founderApp(options: FounderAppOptions = {}) {
         const body = await readBody(c, draftPatchSchema);
         if (body instanceof Response) return body;
         try {
-          return c.json({ draft: await updateDraft(c.env.DB, c.get("founder").workspace_id, c.req.param("id"), body) });
+          const ws = c.get("founder").workspace_id;
+          const draft = await updateDraft(c.env.DB, ws, c.req.param("id"), body);
+          if (body.status === "sent") {
+            const row = await c.env.DB.prepare(
+              "SELECT company_id FROM founder_drafts WHERE id = ? AND workspace_id = ?",
+            )
+              .bind(draft.id, ws)
+              .first<{ company_id: string }>();
+            if (row) await recordSent(c.env.DB, ws, row.company_id, draft.channel_label);
+          }
+          return c.json({ draft });
         } catch (err) {
           if (err instanceof NotFoundError) return jsonError(c, 404, "not_found", err.message);
           throw err;
@@ -283,6 +295,49 @@ export function founderApp(options: FounderAppOptions = {}) {
       .delete("/drafts/:id", requireFounder, async (c) => {
         try {
           await deleteDraft(c.env.DB, c.get("founder").workspace_id, c.req.param("id"));
+          return c.json({ ok: true });
+        } catch (err) {
+          if (err instanceof NotFoundError) return jsonError(c, 404, "not_found", err.message);
+          throw err;
+        }
+      })
+
+      // Pipeline: saved companies, stages, follow-ups (reminders only), notes and a timeline.
+      .post("/companies/:slug/save", requireFounder, async (c) => {
+        const id = await verifiedCompanyId(c.env.DB, c.req.param("slug"));
+        if (!id) return jsonError(c, 404, "not_found", "Company not found.");
+        return c.json({ saved: await saveCompany(c.env.DB, c.get("founder").workspace_id, id) }, 201);
+      })
+      .get("/pipeline", requireFounder, async (c) => {
+        const items = await listPipeline(c.env.DB, c.get("founder").workspace_id);
+        const today = new Date().toISOString().slice(0, 10);
+        return c.json({
+          items,
+          due: items.filter((i) => i.follow_up_at && i.follow_up_at <= today && i.stage !== "partnered").length,
+          today,
+        });
+      })
+      .get("/pipeline/:id/timeline", requireFounder, async (c) => {
+        try {
+          return c.json({ events: await timeline(c.env.DB, c.get("founder").workspace_id, c.req.param("id")) });
+        } catch (err) {
+          if (err instanceof NotFoundError) return jsonError(c, 404, "not_found", err.message);
+          throw err;
+        }
+      })
+      .patch("/pipeline/:id", requireFounder, async (c) => {
+        const body = await readBody(c, pipelinePatchSchema);
+        if (body instanceof Response) return body;
+        try {
+          return c.json({ saved: await updateSaved(c.env.DB, c.get("founder").workspace_id, c.req.param("id"), body) });
+        } catch (err) {
+          if (err instanceof NotFoundError) return jsonError(c, 404, "not_found", err.message);
+          throw err;
+        }
+      })
+      .delete("/pipeline/:id", requireFounder, async (c) => {
+        try {
+          await removeSaved(c.env.DB, c.get("founder").workspace_id, c.req.param("id"));
           return c.json({ ok: true });
         } catch (err) {
           if (err instanceof NotFoundError) return jsonError(c, 404, "not_found", err.message);

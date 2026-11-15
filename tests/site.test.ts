@@ -53,7 +53,7 @@ describe("Vercel copy of the site", () => {
   });
 
   it("uses the same security headers as Cloudflare", () => {
-    const all = vercel.headers.find((h) => h.source === "/(.*)")?.headers ?? [];
+    const all = vercel.headers.find((h) => h.source === "/((?!app/).*)")?.headers ?? [];
     for (const { key, value } of all) expect(headers).toContain(`${key}: ${value}`);
     expect(all.map((h) => h.key)).toContain("Content-Security-Policy");
   });

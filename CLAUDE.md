@@ -40,7 +40,7 @@ Node 22+.
 - Everything before a PR: `npm run check` (lint, typecheck, tests, production build)
 - Tests only: `npm test` (unit tests in Node; API tests in the real Workers runtime with a local D1)
 - Fix formatting: `npm run format`
-- Run locally: `cp .dev.vars.example .dev.vars`, `npm run db:migrate:local`, then `npm run dev` (http://localhost:8787)
+- Run locally: `cp .dev.vars.example .dev.vars`, `npm run db:migrate:local`, `npm run build:app`, then `npm run dev` (http://localhost:8787; founder app at /app, back office at /admin)
 - Regenerate research JSON Schemas after changing `shared/`: `npm run schema`
 - Check a research file: `npm run check:research -- file.json`
 - Add companies and signals (as needs_review): `npm run registry:import -- file.json [--dry-run]` (format: `schemas/registry-file.schema.json`, example: `samples/registry.sample.json`)

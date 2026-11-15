@@ -23,11 +23,21 @@ export interface Env {
   GROK_PRICE_PER_POST_USD?: string;
   GROK_PRICE_INPUT_PER_M_USD?: string;
   GROK_PRICE_OUTPUT_PER_M_USD?: string;
+  /** Privy app ID for founder sign-in (public; set in wrangler.jsonc). */
+  PRIVY_APP_ID?: string;
   /** Local development only: act as this admin without Access. Ignored unless ENVIRONMENT is "development" on localhost. */
   DEV_ADMIN_EMAIL?: string;
 }
 
+export interface FounderContext {
+  id: string;
+  workspace_id: string;
+  session_id: string;
+}
+
 export interface Variables {
+  /** The signed-in founder (founder routes only). */
+  founder: FounderContext;
   /** The verified admin's email, set by the auth middleware. */
   adminEmail: string;
   /** How the Worker fetches outside pages (replaced in tests). */

@@ -95,3 +95,21 @@ you use with the scripts). The key stays in that browser tab only and is forgott
 - **Sources** (pause, resume, check now) and **Spend**.
 
 The terminal tools (`npm run review` and the rest) still work the same way.
+
+## Founder sign-in (Privy)
+
+Founders sign in at `/app` with X, Google or an email code, through Privy. The Privy app ID is public and set in
+`wrangler.jsonc` and `app/src/main.tsx`. No Privy secret is used anywhere.
+
+Set up once in the Privy dashboard (dashboard.privy.io → the Rightroom app):
+1. **Login methods:** turn on **Email**, **Google** and **X (Twitter)**. Turn off wallet login and any other method.
+2. **Embedded wallets:** leave automatic creation **off**.
+3. **Identity tokens:** turn on **"Return user data in an identity token"** (sometimes called identity tokens). Rightroom
+   needs it to read the signed-in email or X handle; without it, sign-in stops at "Checking your invite…".
+4. **Allowed domains:** add `https://rightroom.danewurum01.workers.dev` (and the Vercel address if you use it).
+5. Later, optional: your own X and Google app credentials, so the sign-in screens say Rightroom instead of Privy.
+
+Who can get in: people you mark **Invited** in `/admin` → Requests, or add with **Invite someone directly** (email or
+X handle). Everyone else sees "You're not on the pilot list yet" and can request access. `/admin` → Founders lists who
+has signed up. Deleting an account in the app removes everything Rightroom stores; their login record at Privy can be
+removed in the Privy dashboard (Users).

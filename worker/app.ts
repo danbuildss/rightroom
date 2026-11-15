@@ -5,11 +5,12 @@ import { jsonError, securityHeaders } from "./http.ts";
 import { type AuthOptions, requireAdmin } from "./middleware/auth.ts";
 import { accessApi } from "./routes/access.ts";
 import { admin } from "./routes/admin.ts";
+import { type FounderAppOptions, founderApp } from "./routes/app.ts";
 import { collector } from "./routes/collector.ts";
 import { publicApi } from "./routes/public.ts";
 import { workspaces } from "./routes/workspaces.ts";
 
-export interface AppOptions extends AuthOptions {
+export interface AppOptions extends AuthOptions, FounderAppOptions {
   /** How outside pages are fetched (tests pass a fake). */
   fetcher?: typeof fetch;
 }
@@ -28,6 +29,9 @@ export function createApp(options: AppOptions = {}) {
 
   // Public: the marketing site's Request access form.
   app.route("/api/public/access-requests", accessApi);
+
+  // Founder app: its own sign-in (Privy) and session cookie; never the admin key.
+  app.route("/api/app", founderApp(options));
 
   // Public Discover API: read-only, verified records only, no login.
   app.route("/api/public", publicApi);

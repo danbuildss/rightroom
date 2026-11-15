@@ -4,7 +4,7 @@
  */
 import { type Context, Hono } from "hono";
 import { z } from "zod";
-import { ACCESS_STATUSES, accessReviewSchema } from "../../shared/access.ts";
+import { ACCESS_STATUSES, accessReviewSchema, directInviteSchema } from "../../shared/access.ts";
 import { ALIAS_KINDS, COMPANY_STATUSES } from "../../shared/registry.ts";
 import { companyPatchSchema, registryFileSchema, signalPatchSchema } from "../../shared/registry-file.ts";
 import {
@@ -14,11 +14,12 @@ import {
   SIGNAL_TYPE_SLUGS,
   SIGNAL_TYPES,
 } from "../../shared/signals.ts";
-import { listAccessRequests, reviewAccessRequest } from "../db/access.ts";
+import { inviteDirectly, listAccessRequests, reviewAccessRequest } from "../db/access.ts";
 import { auditData } from "../db/audit.ts";
 import { addAlias, DuplicateCompanyError, getCompany, listCompanies, mergeCompanies } from "../db/companies.ts";
 import { ImportRejectedError, importRegistryFile, reviewQueue, updateCompany, updateSignal } from "../db/curation.ts";
 import { companyEvidence, signalEvidence } from "../db/evidence.ts";
+import { listFounders } from "../db/founders.ts";
 import { adminOverview } from "../db/overview.ts";
 import { DuplicateSignalError, getSignal, listSignals, reviewCompany, reviewSignal } from "../db/signals.ts";
 import { ConflictError, NotFoundError } from "../db/util.ts";
@@ -249,6 +250,12 @@ export const admin = new Hono<AppEnv>()
     if (!q.success) return jsonError(c, 400, "invalid_request", "Invalid filters.");
     return c.json({ requests: await listAccessRequests(c.env.DB, q.data) });
   })
+  .post("/access-requests", async (c) => {
+    const invite = await body(c, directInviteSchema);
+    if (invite instanceof Response) return invite;
+    return c.json({ request: await inviteDirectly(c.env.DB, invite) }, 201);
+  })
+  .get("/founders", async (c) => c.json({ founders: await listFounders(c.env.DB) }))
   .patch("/access-requests/:id", async (c) => {
     const review = await body(c, accessReviewSchema);
     if (review instanceof Response) return review;

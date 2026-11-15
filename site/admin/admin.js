@@ -10,6 +10,7 @@ const SECTIONS = [
   ["inbox", "Inbox"],
   ["requests", "Requests"],
   ["sources", "Sources"],
+  ["founders", "Founders"],
   ["spend", "Spend"],
 ];
 
@@ -259,7 +260,7 @@ function requestTable(rows, emptyText) {
     ${rows
       .map(
         (r) => `<tr data-id="${esc(r.id)}">
-        <td><b>${esc(r.name)}</b><br><span class="meta"><a href="mailto:${esc(r.email)}">${esc(r.email)}</a>${r.website ? ` · ${link(r.website, r.website.replace(/^https?:\/\//, ""))}` : ""}</span><br><span class="meta">${day(r.created_at)}</span></td>
+        <td><b>${esc(r.name)}</b><br><span class="meta">${r.email ? `<a href="mailto:${esc(r.email)}">${esc(r.email)}</a>` : ""}${r.email && r.x_handle ? " · " : ""}${r.x_handle ? link(`https://x.com/${r.x_handle}`, `@${r.x_handle}`) : ""}${r.website ? ` · ${link(r.website, r.website.replace(/^https?:\/\//, ""))}` : ""}</span><br><span class="meta">${day(r.created_at)}</span></td>
         <td class="goal hide-m">${esc(r.goal)}${r.note ? `<br><span class="meta">Note: ${esc(r.note)}</span>` : ""}</td>
         <td><span class="pill ${pill[r.status]}">${esc(r.status[0].toUpperCase() + r.status.slice(1))}</span></td>
         <td>${r.status === "new" ? `<span class="acts"><button class="btn sm" type="button" data-req="declined">Decline</button><button class="btn sm dark" type="button" data-req="invited">Mark invited</button></span>` : `<button class="btn sm" type="button" data-req="new">Move back to new</button>`}</td>
@@ -288,6 +289,16 @@ views.requests = async (view) => {
   const render = async (st) => {
     const { requests } = await api("GET", `/access-requests?status=${st}&limit=200`);
     view.innerHTML = `${header("Access requests", "From the Request access form. You contact people yourself; Rightroom never emails.")}
+      <form class="panel pad invite-form" id="invite-form">
+        <b>Invite someone directly</b>
+        <div class="form-grid">
+          <div><label for="inv-email">Email</label><input id="inv-email" name="email" type="email" maxlength="200" placeholder="name@company.com"></div>
+          <div><label for="inv-x">or X handle</label><input id="inv-x" name="x_handle" maxlength="20" placeholder="@handle"></div>
+          <div class="full"><label for="inv-name">Name (optional)</label><input id="inv-name" name="name" maxlength="100"></div>
+        </div>
+        <p class="help">They can then sign in at /app with that Google or email account, or that X account. Tell them yourself.</p>
+        <button class="btn sm dark" type="submit">Add to the invited list</button>
+      </form>
       <div class="tabs" role="tablist">${["new", "invited", "declined"].map((s) => `<button class="tab${s === st ? " on" : ""}" type="button" data-tab="${s}">${s[0].toUpperCase() + s.slice(1)}</button>`).join("")}</div>
       <div class="panel mt">${requestTable(requests, `No ${st} requests.`)}</div>`;
   };
@@ -296,6 +307,19 @@ views.requests = async (view) => {
     const t = e.target.closest("[data-tab]");
     if (t) await render(t.dataset.tab);
   };
+  view.addEventListener("submit", async (e) => {
+    if (e.target.id !== "invite-form") return;
+    e.preventDefault();
+    const data = Object.fromEntries([...new FormData(e.target).entries()].filter(([, v]) => String(v).trim() !== ""));
+    try {
+      await api("POST", "/access-requests", data);
+      toast("Added to the invited list.");
+      await render("invited");
+      refreshCounts();
+    } catch (err) {
+      if (err.status !== 401) toast(err.message, { bad: true });
+    }
+  });
   bindRequestActions(view, () => render(view.querySelector(".tab.on")?.dataset.tab ?? "new"));
 };
 
@@ -700,6 +724,25 @@ views.sources = async (view) => {
       render();
     }
   };
+};
+
+// ---------- Founders ----------
+views.founders = async (view) => {
+  const { founders } = await api("GET", "/founders");
+  view.innerHTML = `${header("Founders", `${founders.length} signed up · each has a private workspace`)}
+    <div class="panel">${
+      founders.length
+        ? `<table><tr><th>Founder</th><th class="hide-m">Company</th><th>Onboarding</th><th class="hide-m">Last sign-in</th></tr>
+      ${founders
+        .map(
+          (f) => `<tr><td><b>${esc(f.name ?? "—")}</b>${f.role ? ` <span class="meta">· ${esc(f.role)}</span>` : ""}<br><span class="meta">${[f.email ? esc(f.email) : "", f.x_handle ? `@${esc(f.x_handle)}` : ""].filter(Boolean).join(" · ")}</span></td>
+          <td class="hide-m">${esc(f.company_name ?? "—")}${f.website ? `<br>${link(f.website, f.website.replace(/^https?:\/\//, ""))}` : ""}</td>
+          <td>${f.onboarded_at ? `<span class="pill ok">Done</span>` : `<span class="pill grey">Step ${Math.min(f.onboarding_step, 4)} of 4</span>`}</td>
+          <td class="hide-m meta">${ago(f.last_sign_in_at)}</td></tr>`,
+        )
+        .join("")}</table>`
+        : `<div class="pad meta">No founders yet. Invite people from Requests; they sign in at /app.</div>`
+    }</div>`;
 };
 
 // ---------- Spend ----------

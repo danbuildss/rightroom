@@ -1,5 +1,5 @@
 /** Storage for Request access submissions (see shared/access.ts). */
-import type { AccessRequestInput, AccessStatus } from "../../shared/access.ts";
+import type { AccessStatus } from "../../shared/access.ts";
 import { NotFoundError } from "./util.ts";
 
 /** At most this many submissions an hour across the whole site, to blunt spam. */
@@ -8,7 +8,8 @@ export const HOURLY_LIMIT = 30;
 export interface AccessRequest {
   id: string;
   name: string;
-  email: string;
+  email: string | null;
+  x_handle: string | null;
   website: string | null;
   goal: string;
   status: AccessStatus;
@@ -17,13 +18,29 @@ export interface AccessRequest {
   updated_at: string;
 }
 
+export interface AccessSubmission {
+  name: string;
+  email?: string | null;
+  x_handle?: string | null;
+  website?: string | null;
+  goal: string;
+}
+
 export class TooManyRequestsError extends Error {}
 
+async function findExisting(db: D1Database, email?: string | null, x?: string | null) {
+  if (!email && !x) return null;
+  return db
+    .prepare("SELECT id, status FROM access_requests WHERE email = ? OR x_handle = ? ORDER BY created_at LIMIT 1")
+    .bind(email ?? null, x ?? null)
+    .first<{ id: string; status: AccessStatus }>();
+}
+
 /**
- * Save a request. Sending again with the same email updates a still-new request rather
- * than creating a duplicate, and gives the same answer, so the form never reveals who has applied.
+ * Save a request. Sending again with the same email or X handle updates a still-new request
+ * rather than creating a duplicate, and gives the same answer, so the form never reveals who has applied.
  */
-export async function submitAccessRequest(db: D1Database, input: AccessRequestInput, now = new Date()): Promise<void> {
+export async function submitAccessRequest(db: D1Database, input: AccessSubmission, now = new Date()): Promise<void> {
   const since = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
   const recent = await db
     .prepare("SELECT COUNT(*) AS n FROM access_requests WHERE updated_at >= ?")
@@ -31,16 +48,76 @@ export async function submitAccessRequest(db: D1Database, input: AccessRequestIn
     .first<{ n: number }>();
   if ((recent?.n ?? 0) >= HOURLY_LIMIT) throw new TooManyRequestsError("Too many requests right now.");
   const at = now.toISOString();
+  const existing = await findExisting(db, input.email, input.x_handle);
+  if (existing) {
+    if (existing.status !== "new") return;
+    await db
+      .prepare(
+        `UPDATE access_requests SET name = ?, website = ?, goal = ?, updated_at = ?,
+           email = COALESCE(email, ?), x_handle = COALESCE(x_handle, ?) WHERE id = ?`,
+      )
+      .bind(input.name, input.website ?? null, input.goal, at, input.email ?? null, input.x_handle ?? null, existing.id)
+      .run()
+      .catch(() => undefined); // a clash on the other identifier: keep the request as it was
+    return;
+  }
   await db
     .prepare(
-      `INSERT INTO access_requests (id, name, email, website, goal, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 'new', ?, ?)
-       ON CONFLICT (email) DO UPDATE SET name = excluded.name, website = excluded.website, goal = excluded.goal,
-         updated_at = excluded.updated_at
-       WHERE access_requests.status = 'new'`,
+      `INSERT INTO access_requests (id, name, email, x_handle, website, goal, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'new', ?, ?)`,
     )
-    .bind(crypto.randomUUID(), input.name, input.email, input.website ?? null, input.goal, at, at)
+    .bind(
+      crypto.randomUUID(),
+      input.name,
+      input.email ?? null,
+      input.x_handle ?? null,
+      input.website ?? null,
+      input.goal,
+      at,
+      at,
+    )
     .run();
+}
+
+/** Dan invites someone directly. An existing request for the same email or handle is marked invited instead. */
+export async function inviteDirectly(
+  db: D1Database,
+  input: { name?: string; email?: string; x_handle?: string; note?: string },
+  now = new Date(),
+): Promise<AccessRequest> {
+  const at = now.toISOString();
+  const existing = await findExisting(db, input.email, input.x_handle);
+  if (existing) return reviewAccessRequest(db, existing.id, { status: "invited", note: input.note }, now);
+  const row = await db
+    .prepare(
+      `INSERT INTO access_requests (id, name, email, x_handle, goal, status, note, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 'Invited directly by Dan', 'invited', ?, ?, ?) RETURNING *`,
+    )
+    .bind(
+      crypto.randomUUID(),
+      input.name || input.email || `@${input.x_handle}`,
+      input.email ?? null,
+      input.x_handle ?? null,
+      input.note ?? null,
+      at,
+      at,
+    )
+    .first<AccessRequest>();
+  if (!row) throw new Error("invite not saved");
+  return row;
+}
+
+/** Is any of these identities on the invited list? */
+export async function isInvited(db: D1Database, emails: string[], x: string | null): Promise<boolean> {
+  if (emails.length === 0 && !x) return false;
+  const row = await db
+    .prepare(
+      `SELECT 1 AS ok FROM access_requests WHERE status = 'invited' AND (
+         x_handle = ? ${emails.length ? `OR email IN (${emails.map(() => "?").join(",")})` : ""}) LIMIT 1`,
+    )
+    .bind(x ?? null, ...emails)
+    .first<{ ok: number }>();
+  return Boolean(row);
 }
 
 export async function listAccessRequests(

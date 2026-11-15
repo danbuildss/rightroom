@@ -1,8 +1,9 @@
 import { useIdentityToken, useLoginWithEmail, useLoginWithOAuth, usePrivy } from "@privy-io/react-auth";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { ApiError, api, type Identity, type View } from "./api.ts";
+import { ApiError, api, type Identity, pipeline, type View } from "./api.ts";
 import { Company } from "./Company.tsx";
 import { Discover } from "./Discover.tsx";
+import { Pipeline } from "./Pipeline.tsx";
 
 const GOALS = [
   ["integrations", "Integrations", "Build into each other's product"],
@@ -28,7 +29,14 @@ type Stage =
   | { kind: "code"; email: string }
   | { kind: "checking" }
   | { kind: "not_invited"; identity: Identity; sent?: boolean }
-  | { kind: "app"; view: View; editing?: number; at?: number; tab?: "discover" | "company"; profile?: string };
+  | {
+      kind: "app";
+      view: View;
+      editing?: number;
+      at?: number;
+      tab?: "discover" | "company" | "saved" | "pipeline";
+      profile?: string;
+    };
 
 function Logo() {
   return (
@@ -371,6 +379,14 @@ function FounderHome(props: {
   logout: () => Promise<void>;
 }) {
   const { stage, setStage, signOut, logout } = props;
+  const [savedCount, setSavedCount] = useState<number | null>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refresh the count whenever the founder changes page
+  useEffect(() => {
+    pipeline
+      .list()
+      .then((d) => setSavedCount(d.items.length))
+      .catch(() => undefined);
+  }, [stage.tab, stage.profile]);
   const { founder, profile } = stage.view;
   const step = stage.editing ?? stage.at ?? (founder.onboarding_step <= 4 ? founder.onboarding_step : 0);
   const first = founder.name?.split(" ")[0] ?? "there";
@@ -413,7 +429,7 @@ function FounderHome(props: {
   };
 
   const tab = stage.tab ?? "discover";
-  const go = (t: "discover" | "company") => setStage({ kind: "app", view: stage.view, tab: t });
+  const go = (t: "discover" | "company" | "saved" | "pipeline") => setStage({ kind: "app", view: stage.view, tab: t });
   const suggestion = profile.one_liner
     ? `e.g. Companies that could integrate with "${profile.one_liner.slice(0, 60)}" and help us reach more customers`
     : "e.g. Payments companies that could integrate our API and help us reach more businesses";
@@ -431,12 +447,22 @@ function FounderHome(props: {
           >
             Discover
           </button>
-          <span className="navi off">
-            Saved <span className="soon">SOON</span>
-          </span>
-          <span className="navi off">
-            Pipeline <span className="soon">SOON</span>
-          </span>
+          <button
+            type="button"
+            className={tab === "saved" ? "navi on" : "navi"}
+            aria-current={tab === "saved" ? "page" : undefined}
+            onClick={() => go("saved")}
+          >
+            Saved {savedCount !== null ? <span className="ncount">{savedCount}</span> : null}
+          </button>
+          <button
+            type="button"
+            className={tab === "pipeline" ? "navi on" : "navi"}
+            aria-current={tab === "pipeline" ? "page" : undefined}
+            onClick={() => go("pipeline")}
+          >
+            Pipeline
+          </button>
           <button
             type="button"
             className={tab === "company" ? "navi on" : "navi"}
@@ -459,6 +485,13 @@ function FounderHome(props: {
         </div>
         {tab === "discover" && stage.profile ? (
           <Company slug={stage.profile} onBack={() => setStage({ ...stage, profile: undefined })} />
+        ) : null}
+        {tab === "saved" || tab === "pipeline" ? (
+          <Pipeline
+            view={tab === "saved" ? "list" : "board"}
+            onCount={setSavedCount}
+            onOpenCompany={(slug) => setStage({ ...stage, tab: "discover", profile: slug })}
+          />
         ) : null}
         {tab !== "company" ? null : (
           <div className="company">

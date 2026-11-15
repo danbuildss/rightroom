@@ -79,6 +79,7 @@ export interface SignalView {
   sources: { url: string; title: string; role: string }[];
 }
 export interface DiscoverResult {
+  saved: { id: string; stage: string } | null;
   slug: string;
   name: string;
   domain: string;
@@ -169,4 +170,33 @@ export const drafts = {
   update: (id: string, d: Record<string, unknown>) =>
     call<{ draft: SavedDraft }>("PATCH", `/drafts/${encodeURIComponent(id)}`, d),
   remove: (id: string) => call<{ ok: true }>("DELETE", `/drafts/${encodeURIComponent(id)}`),
+};
+
+export type Stage = "shortlisted" | "contacted" | "in_discussion" | "partnered";
+export interface PipelineItem {
+  id: string;
+  stage: Stage;
+  follow_up_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  slug: string;
+  name: string;
+  domain: string;
+  company_status: string;
+  sectors: string | null;
+  last_sent_at: string | null;
+  last_sent_via: string | null;
+  drafts: number;
+}
+
+export const pipeline = {
+  list: () => call<{ items: PipelineItem[]; due: number; today: string }>("GET", "/pipeline"),
+  save: (slug: string) =>
+    call<{ saved: { id: string; stage: Stage } }>("POST", `/companies/${encodeURIComponent(slug)}/save`, {}),
+  update: (id: string, d: { stage?: Stage; follow_up_at?: string | null; notes?: string }) =>
+    call<{ saved: { id: string; stage: Stage } }>("PATCH", `/pipeline/${encodeURIComponent(id)}`, d),
+  remove: (id: string) => call<{ ok: true }>("DELETE", `/pipeline/${encodeURIComponent(id)}`),
+  timeline: (id: string) =>
+    call<{ events: { at: string; text: string }[] }>("GET", `/pipeline/${encodeURIComponent(id)}/timeline`),
 };

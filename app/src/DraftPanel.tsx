@@ -8,8 +8,18 @@ const day = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }) : "";
 const href = (url: string | null) => (url && /^https?:\/\//i.test(url) ? url : undefined);
 
-export function DraftPanel({ slug, companyName, onClose }: { slug: string; companyName: string; onClose: () => void }) {
-  const [variant, setVariant] = useState<Variant>("first");
+export function DraftPanel({
+  slug,
+  companyName,
+  onClose,
+  initialVariant = "first",
+}: {
+  slug: string;
+  companyName: string;
+  onClose: () => void;
+  initialVariant?: Variant;
+}) {
+  const [variant, setVariant] = useState<Variant>(initialVariant);
   const [to, setTo] = useState<number | "team" | undefined>(undefined);
   const [via, setVia] = useState<number | undefined>(undefined);
   const [gen, setGen] = useState<GeneratedDraft | null>(null);
@@ -105,7 +115,7 @@ export function DraftPanel({ slug, companyName, onClose }: { slug: string; compa
     if (!id) return;
     try {
       await drafts.update(id, { status: "sent" });
-      flash("Marked as sent by you. You can follow up from here later.");
+      flash("Marked as sent by you. It's now in your pipeline as Contacted, with a follow-up in a week.");
       loadList();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't update.");

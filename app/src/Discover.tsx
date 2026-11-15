@@ -1,5 +1,5 @@
 import { type FormEvent, useCallback, useEffect, useState } from "react";
-import { type DiscoverResponse, type DiscoverResult, discover } from "./api.ts";
+import { type DiscoverResponse, type DiscoverResult, discover, pipeline } from "./api.ts";
 
 const GOAL_LABELS: Record<string, string> = {
   integrations: "Integrations",
@@ -249,6 +249,7 @@ function ResultCard({
           <button type="button" className="mini dark" onClick={onOpen}>
             View profile →
           </button>
+          <SaveButton slug={r.slug} saved={r.saved} />
           <button type="button" className="mini" aria-expanded={open} onClick={onToggle}>
             {open ? "Hide details ▴" : "Show details ▾"}
           </button>
@@ -301,5 +302,42 @@ function ResultCard({
         </div>
       ) : null}
     </article>
+  );
+}
+
+const STAGE_NAMES: Record<string, string> = {
+  shortlisted: "Shortlisted",
+  contacted: "Contacted",
+  in_discussion: "In discussion",
+  partnered: "Partnered",
+};
+
+export function SaveButton({ slug, saved }: { slug: string; saved: { id: string; stage: string } | null }) {
+  const [state, setState] = useState(saved);
+  const [busy, setBusy] = useState(false);
+  if (state) {
+    return (
+      <span className="mini saved-on" title="In your pipeline">
+        ★ {STAGE_NAMES[state.stage] ?? "Saved"}
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className="mini"
+      disabled={busy}
+      onClick={async () => {
+        setBusy(true);
+        try {
+          const r = await pipeline.save(slug);
+          setState(r.saved);
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      ☆ Save
+    </button>
   );
 }

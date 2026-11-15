@@ -155,13 +155,19 @@ async function load(db: D1Database, workspaceId: string, input: DiscoverInput, o
       scored.push({ co, categories, signals, fit: scoreCompany(dc, { target, own, goals, terms: parsed.terms }) });
     }
   }
-  return { profile, target, goals, places: parsed.places, categoryRows, scored };
+  const { results: savedRows } = await db
+    .prepare("SELECT id, company_id, stage FROM founder_saved WHERE workspace_id = ?")
+    .bind(workspaceId)
+    .all<{ id: string; company_id: string; stage: string }>();
+  const saved = new Map(savedRows.map((r) => [r.company_id, { id: r.id, stage: r.stage }]));
+  return { profile, target, goals, places: parsed.places, categoryRows, scored, saved };
 }
 
 type Scored = Awaited<ReturnType<typeof load>>["scored"][number];
 
-function view({ co, categories, signals, fit }: Scored) {
+function view({ co, categories, signals, fit }: Scored, saved?: { id: string; stage: string }) {
   return {
+    saved: saved ?? null,
     slug: co.slug,
     name: co.name,
     domain: co.domain,
@@ -196,7 +202,7 @@ export async function discover(db: D1Database, workspaceId: string, input: Disco
     .filter((r) => r.fit.label !== "below")
     .sort((a, b) => LABEL_RANK[a.fit.label] - LABEL_RANK[b.fit.label] || b.fit.overall - a.fit.overall)
     .slice(0, 50)
-    .map(view);
+    .map((r) => view(r, data.saved.get(r.co.id)));
   return {
     understood: {
       categories: data.target.map((slug) => ({
@@ -242,5 +248,5 @@ export async function companyIntel(db: D1Database, workspaceId: string, slug: st
     signals: row.signals.map((s) => ({ type: s.signal_type, event_date: s.event_date, fresh: s.fresh })),
     channels: channels.map((c) => ({ label: c.label ?? "" })),
   });
-  return { company: view(row), people, channels, suggestions, goals: data.goals };
+  return { company: view(row, data.saved.get(row.co.id)), people, channels, suggestions, goals: data.goals };
 }

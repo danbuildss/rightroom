@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { type CompanyIntel, companyIntel } from "./api.ts";
+import { SaveButton } from "./Discover.tsx";
 import { DraftPanel } from "./DraftPanel.tsx";
 
 const LABELS = { strong: "Strong fit", potential: "Potential fit", needs_verification: "Needs verification" } as const;
@@ -110,9 +111,7 @@ export function Company({ slug, onBack }: { slug: string; onBack: () => void }) 
           ) : null}
           <div className="ev">Evidence: {EVIDENCE[c.fit.evidence]} · Rightroom's estimate</div>
           <div className="iacts">
-            <button type="button" className="mini" disabled>
-              ☆ Save <span className="soon">SOON</span>
-            </button>
+            <SaveButton key={c.saved?.stage ?? "none"} slug={c.slug} saved={c.saved} />
           </div>
         </div>
       </header>
@@ -246,7 +245,18 @@ export function Company({ slug, onBack }: { slug: string; onBack: () => void }) 
           </div>
         </section>
       </div>
-      {drafting ? <DraftPanel slug={slug} companyName={c.name} onClose={() => setDrafting(false)} /> : null}
+      {drafting ? (
+        <DraftPanel
+          slug={slug}
+          companyName={c.name}
+          onClose={() => {
+            setDrafting(false);
+            companyIntel(slug)
+              .then(setData)
+              .catch(() => undefined);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

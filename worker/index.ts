@@ -1,6 +1,7 @@
 import { createApp } from "./app.ts";
 import { purgeOldAccessRequests } from "./db/access.ts";
 import { runDueSources } from "./db/collector.ts";
+import { discover } from "./db/discovery.ts";
 import { enrichMissing } from "./db/enrich.ts";
 import { fetchMissingLogos } from "./db/logos.ts";
 import type { Env } from "./env.ts";
@@ -21,6 +22,14 @@ export default {
     ctx.waitUntil(
       purgeOldAccessRequests(env.DB).then((n) => {
         if (n) console.log(`access requests: ${n} older than 12 months deleted`);
+      }),
+    );
+    // New early-stage teams: each source about once a day, then a few candidates' websites read.
+    ctx.waitUntil(
+      discover(env.DB, { env }).then((r) => {
+        const added = r.sources.reduce((n, s) => n + s.added, 0);
+        if (r.sources.length || r.sites_read)
+          console.log(`discovery: ${added} new candidates, ${r.sites_read} sites read`);
       }),
     );
     // Website details (X, GitHub, LinkedIn, docs, partner page, partnerships email or form): 5 companies an hour.

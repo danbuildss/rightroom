@@ -2,6 +2,20 @@
 
 Short records of technical decisions, newest first. Product decisions live in `PLAN.md`.
 
+## 2026-11-15: Finding early-stage teams (data engine, part B)
+- **Sources, all free public APIs, each run about once a day by the hourly job (or "Find new teams now"):**
+  - Hacker News "Show HN" posts from the last 7 days (hn.algolia.com search API), filtered by our sector words
+  - GitHub repositories created in the last 30 days with at least 10 stars on our topics (mcp-server, ai-agents, x402, stablecoin, llm-tools) that list their own homepage
+  - website domains already in the Inbox (MCP registry, Grok and other sources)
+- **What counts:** only a product's own domain. Code hosts, social sites, app hosting (vercel.app, github.io…) and blogs are skipped. Domains that are already a company, or were proposed before, are skipped, so rejected teams never come back. At most 15 new candidates per run.
+- **Each candidate's homepage is read** for its name (og:site_name or title), description (meta description) and links. Sectors come from our keyword list, and a type from simple word rules. All of these are suggestions.
+- **Approving (Dan, up to 25 at a time):**
+  - creates the company from its own homepage's details, verified against `https://<domain>`
+  - sets an "Early stage" profile with the suggested type, confirmed by Dan's approval
+  - keeps the place it was found as a source
+  - fills in links and logo straight away
+- Migration 0016: `company_candidates` and `discovery_state`.
+
 ## 2026-11-15: Details from the company's own website (data engine, part A)
 - **Dan approved showing these without review,** because they come from the company's own homepage: X, GitHub, LinkedIn company page, docs, partner page, and a **published** partnerships email (partner, partnerships, bd, biz, business, alliances or integrations at the company's own domain) or contact form.
 - **How they're read:** `shared/enrich.ts` reads only the homepage's `<a>` links. Social accounts are counted and the most-linked one wins (so the footer beats a one-off mention). Share, intent and status links, and reserved paths, are ignored. Nothing is guessed.

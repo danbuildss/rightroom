@@ -29,6 +29,7 @@ import {
 } from "../db/companies.ts";
 import { addContact, listContacts, reviewContact } from "../db/contacts.ts";
 import { ImportRejectedError, importRegistryFile, reviewQueue, updateCompany, updateSignal } from "../db/curation.ts";
+import { approveCandidates, discover, listCandidates, readCandidateSites, rejectCandidates } from "../db/discovery.ts";
 import {
   blockDetail,
   type DetailKind,
@@ -293,6 +294,38 @@ export const admin = new Hono<AppEnv>()
     } else return jsonError(c, 400, "invalid_request", "Unknown detail.");
     await blockDetail(db, id, kind);
     return c.json({ ok: true });
+  })
+  // New early-stage teams: find now, list, approve (in batches) or reject.
+  .get("/candidates", async (c) => {
+    const status = z.enum(["new", "approved", "rejected"]).catch("new").parse(c.req.query("status"));
+    return c.json({ candidates: await listCandidates(c.env.DB, status) });
+  })
+  .post("/candidates/find", async (c) =>
+    c.json(await discover(c.env.DB, { env: c.env, fetcher: c.get("fetcher"), force: true })),
+  )
+  .post("/candidates/read-sites", async (c) =>
+    c.json({ read: await readCandidateSites(c.env.DB, { fetcher: c.get("fetcher"), limit: 10 }) }),
+  )
+  .post("/candidates/approve", async (c) => {
+    const input = await body(
+      c,
+      z.strictObject({
+        ids: z.array(z.string().min(1).max(64)).min(1).max(25),
+        names: z.record(z.string(), z.string().trim().min(1).max(200)).optional(),
+      }),
+    );
+    if (input instanceof Response) return input;
+    return c.json({
+      results: await approveCandidates(c.env.DB, input.ids, c.get("adminEmail"), {
+        fetcher: c.get("fetcher"),
+        names: input.names,
+      }),
+    });
+  })
+  .post("/candidates/reject", async (c) => {
+    const input = await body(c, z.strictObject({ ids: z.array(z.string().min(1).max(64)).min(1).max(200) }));
+    if (input instanceof Response) return input;
+    return c.json({ rejected: await rejectCandidates(c.env.DB, input.ids, c.get("adminEmail")) });
   })
   // Website details: what was read last, read one company again, or read the next 10.
   .get("/companies/:id/website", async (c) => c.json(await enrichmentInfo(c.env.DB, c.req.param("id"))))

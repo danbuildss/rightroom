@@ -783,7 +783,7 @@ views.companies = async (view) => {
         <button class="tab${mode === "suggested" ? " on" : ""}" type="button" data-mode="suggested" aria-pressed="${mode === "suggested"}">Profiles to confirm ${toConfirm.length}</button>
       </div></div>
       <form class="toolbar" id="co-search"><input name="q" placeholder="Search companies" value="${esc(q)}" maxlength="100"><button class="btn sm" type="submit">Search</button></form>
-      <div class="toolbar"><span class="meta">Logos come from each company's own website, a few each hour. Founders see initials until one is found.</span><button class="btn sm" type="button" data-logos-missing>Find missing logos now</button></div>
+      <div class="toolbar"><span class="meta">Logos and links (X, GitHub, LinkedIn, docs, partner page, partnerships email) are read from each company's own website, a few each hour, and shown without review. Remove anything that's wrong.</span><div class="row-actions"><button class="btn sm" type="button" data-fill-web>Fill links from websites now</button><button class="btn sm" type="button" data-logos-missing>Find missing logos now</button></div></div>
       ${mode === "suggested" && companies.length ? `<div class="toolbar"><span class="meta">Check the suggestions below first.</span><button class="btn sm blue" type="button" data-confirm-all>✓ Confirm all ${companies.length} as suggested</button></div>` : ""}
       ${mode === "suggested" ? `<p class="help">These were pre-filled from each company's verified description and sectors. Location is left for you. Check them, fix any that are wrong with Profile ▾, then confirm.</p>` : ""}
       ${companies.length ? "" : `<div class="empty"><b>${mode === "suggested" ? "Nothing to confirm" : "No verified companies match"}</b>${mode === "suggested" ? "Every suggested profile is confirmed." : "Verify companies in Review first."}</div>`}
@@ -841,12 +841,24 @@ views.companies = async (view) => {
     const box = $("[data-bpanel]", card);
     box.hidden = false;
     box.innerHTML = `<span class="reading">Loading…</span>`;
-    const [{ logo }, { company }] = await Promise.all([
+    const [{ logo }, { company }, site] = await Promise.all([
       api("GET", `/companies/${encodeURIComponent(id)}/logo`),
       api("GET", `/companies/${encodeURIComponent(id)}`),
+      api("GET", `/companies/${encodeURIComponent(id)}/website`),
     ]);
     const alias = (k) => company.aliases.find((a) => a.kind === k)?.value ?? "";
     const src = (k) => company.sources.find((x) => x.kind === k)?.url ?? "";
+    const webl = (k) => site.web.find((w) => w.kind === k)?.value ?? "";
+    const LABELS = { x: "X", github: "GitHub", linkedin: "LinkedIn", docs: "Docs", partners: "Partner page", email: "Partnerships email", contact_form: "Contact form" };
+    const current = [
+      ["x", alias("x_handle") && `https://x.com/${alias("x_handle")}`],
+      ["github", alias("github_org") && `https://github.com/${alias("github_org")}`],
+      ["linkedin", webl("linkedin")],
+      ["docs", src("docs")],
+      ["partners", src("partner_page")],
+      ["email", webl("email")],
+      ["contact_form", webl("contact_form")],
+    ].filter(([, v]) => v);
     const state = !logo
       ? `<span class="pill grey">Not checked yet</span>`
       : logo.status === "found"
@@ -864,14 +876,28 @@ views.companies = async (view) => {
         ${logo?.status === "hidden" ? "" : `<button class="btn sm danger" type="button" data-lhide>Hide logo</button>`}
       </div>
       <p class="help">PNG, JPEG, WebP, GIF or ICO, up to 100 KB. Never SVG. Shown only next to the company's own name in Explore and on its page.</p>
+      <div class="webdet">
+        <div class="ph"><b>Links founders see</b><span class="meta">${site.checked_at ? `Website read ${day(site.checked_at)}${site.note ? ` · ${esc(site.note)}` : ""}` : "Website not read yet"}</span></div>
+        ${
+          current.length
+            ? `<ul class="detlist">${current
+                .map(([k, v]) => `<li><span class="k">${LABELS[k]}</span>${k === "email" ? esc(v) : link(v)}<button class="btn sm" type="button" data-rmdet="${k}">Remove</button></li>`)
+                .join("")}</ul>`
+            : `<p class="meta">None yet.</p>`
+        }
+        ${site.blocked.length ? `<p class="help">You removed: ${site.blocked.map((k) => LABELS[k] ?? k).join(", ")}. The website reader won't add these again; set them by hand below if needed.</p>` : ""}
+        <button class="btn sm" type="button" data-reread>Read their website again</button>
+      </div>
       <form class="inline-form flat" data-links>
         <div class="form-grid">
           <div><label>X handle<input name="x" maxlength="60" placeholder="@company" value="${esc(alias("x_handle"))}"></label></div>
           <div><label>GitHub organisation<input name="github" maxlength="100" placeholder="company" value="${esc(alias("github_org"))}"></label></div>
           <div><label>Partner page<input name="partners" type="url" maxlength="500" placeholder="https://${esc(c.primary_domain)}/partners" value="${esc(src("partner_page"))}"></label></div>
           <div><label>Docs<input name="docs" type="url" maxlength="500" placeholder="https://docs.${esc(c.primary_domain)}" value="${esc(src("docs"))}"></label></div>
+          <div><label>LinkedIn company page<input name="linkedin" type="url" maxlength="300" placeholder="https://www.linkedin.com/company/…" value="${esc(webl("linkedin"))}"></label></div>
+          <div><label>Partnerships email (published by them)<input name="email" type="email" maxlength="200" placeholder="partners@${esc(c.primary_domain)}" value="${esc(webl("email"))}"></label></div>
         </div>
-        <p class="help">Partner page and docs must be on ${esc(c.primary_domain)}. Clearing X or GitHub removes it.</p>
+        <p class="help">Filled in automatically from their homepage where possible; anything you type here wins. Partner page and docs must be on ${esc(c.primary_domain)}. Clearing X or GitHub removes it. Never a guessed email.</p>
         <button class="btn sm dark" type="submit">Save links</button>
       </form>`;
     $("[data-links]", box).addEventListener("submit", async (e) => {
@@ -882,12 +908,16 @@ views.companies = async (view) => {
         const v = f[field].value.trim();
         const was = alias(aliasKind);
         if (v === was.replace(/^@/, "") || v === `@${was}` || v === was) continue;
-        if (was) changes.push(() => api("DELETE", `/companies/${encodeURIComponent(id)}/aliases/${aliasKind}`));
+        if (was) changes.push(() => api("DELETE", `/companies/${encodeURIComponent(id)}/details/${kind}`));
         if (v) changes.push(() => api("POST", `/companies/${encodeURIComponent(id)}/links`, { kind, value: v }));
       }
       for (const [field, kind, srcKind] of [["partners", "partners", "partner_page"], ["docs", "docs", "docs"]]) {
         const v = f[field].value.trim();
         if (v && v !== src(srcKind)) changes.push(() => api("POST", `/companies/${encodeURIComponent(id)}/links`, { kind, value: v }));
+      }
+      for (const kind of ["linkedin", "email"]) {
+        const v = f[kind].value.trim();
+        if (v && v !== webl(kind)) changes.push(() => api("POST", `/companies/${encodeURIComponent(id)}/links`, { kind, value: v }));
       }
       try {
         for (const run of changes) await run();
@@ -984,6 +1014,23 @@ views.companies = async (view) => {
         b.textContent = open ? "Logo & links ▾" : "Hide logo & links ▴";
         if (open) $("[data-bpanel]", card).hidden = true;
         else await brandPanel(card);
+      } else if (t.closest("[data-rmdet]") && card) {
+        await api("DELETE", `/companies/${encodeURIComponent(card.dataset.id)}/details/${t.closest("[data-rmdet]").dataset.rmdet}`);
+        toast("Removed. It won't be added back automatically.");
+        brandPanel(card);
+      } else if (t.closest("[data-reread]") && card) {
+        const r = await api("POST", `/companies/${encodeURIComponent(card.dataset.id)}/website`);
+        toast(r.added.length ? `Added: ${r.added.join(", ")}.` : r.note || "Nothing new on their homepage.");
+        brandPanel(card);
+      } else if (t.closest("[data-fill-web]")) {
+        const b = t.closest("[data-fill-web]");
+        b.disabled = true;
+        b.textContent = "Reading websites…";
+        const { results } = await api("POST", "/website/fill-missing");
+        const n = results.reduce((sum, r) => sum + r.added.length, 0);
+        toast(results.length ? `${results.length} websites read, ${n} links added.` : "Every company's website has been read this month.");
+        b.disabled = false;
+        b.textContent = "Fill links from websites now";
       } else if (t.closest("[data-lfetch]") && card) {
         const r = await api("POST", `/companies/${encodeURIComponent(card.dataset.id)}/logo/fetch`, {});
         toast(r.status === "found" ? "Logo found." : "No usable logo on their site. Initials are shown.");

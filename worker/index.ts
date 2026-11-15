@@ -1,6 +1,7 @@
 import { createApp } from "./app.ts";
 import { purgeOldAccessRequests } from "./db/access.ts";
 import { runDueSources } from "./db/collector.ts";
+import { enrichMissing } from "./db/enrich.ts";
 import { fetchMissingLogos } from "./db/logos.ts";
 import type { Env } from "./env.ts";
 
@@ -20,6 +21,13 @@ export default {
     ctx.waitUntil(
       purgeOldAccessRequests(env.DB).then((n) => {
         if (n) console.log(`access requests: ${n} older than 12 months deleted`);
+      }),
+    );
+    // Website details (X, GitHub, LinkedIn, docs, partner page, partnerships email or form): 5 companies an hour.
+    ctx.waitUntil(
+      enrichMissing(env.DB, { limit: 5 }).then((r) => {
+        const n = r.reduce((sum, x) => sum + x.added.length, 0);
+        if (r.length) console.log(`website details: ${r.length} companies read, ${n} details added`);
       }),
     );
     // Logos: a few verified companies without a checked logo (or not checked for a month) each hour.

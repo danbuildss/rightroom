@@ -290,6 +290,7 @@ export function Explore({ onOpen }: { onOpen: (slug: string) => void }) {
 
       {data ? (
         <>
+          <h2 className="sr">Companies</h2>
           <div className="dirh">
             <span aria-live="polite">
               <b>

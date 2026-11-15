@@ -9,6 +9,9 @@ export interface CompanyLinks {
   github: string | null;
   partners: string | null;
   docs: string | null;
+  linkedin: string | null;
+  email: string | null;
+  contact_form: string | null;
 }
 
 const onSite = (url: string, domain: string) => {
@@ -27,10 +30,19 @@ export async function linksFor(
   const out = new Map<string, CompanyLinks>();
   if (!companies.length) return out;
   for (const c of companies)
-    out.set(c.id, { website: `https://${c.domain}`, x: null, github: null, partners: null, docs: null });
+    out.set(c.id, {
+      website: `https://${c.domain}`,
+      x: null,
+      github: null,
+      partners: null,
+      docs: null,
+      linkedin: null,
+      email: null,
+      contact_form: null,
+    });
   const ids = companies.map((c) => c.id);
   const marks = ids.map(() => "?").join(",");
-  const [aliases, sources] = await db.batch([
+  const [aliases, sources, web] = await db.batch([
     db
       .prepare(
         `SELECT company_id, kind, value FROM company_aliases WHERE company_id IN (${marks}) AND kind IN ('x_handle', 'github_org')
@@ -43,7 +55,15 @@ export async function linksFor(
          ORDER BY first_seen_at DESC`,
       )
       .bind(...ids),
+    db.prepare(`SELECT company_id, kind, value FROM company_web_links WHERE company_id IN (${marks})`).bind(...ids),
   ]);
+  for (const w of (web?.results ?? []) as { company_id: string; kind: string; value: string }[]) {
+    const l = out.get(w.company_id);
+    if (!l) continue;
+    if (w.kind === "linkedin" && /^https:\/\/(www\.)?linkedin\.com\/company\//.test(w.value)) l.linkedin = w.value;
+    if (w.kind === "email" && /^[^\s@<>"]+@[^\s@<>"]+$/.test(w.value)) l.email = w.value;
+    if (w.kind === "contact_form" && /^https:\/\//.test(w.value)) l.contact_form = w.value;
+  }
   for (const a of (aliases?.results ?? []) as { company_id: string; kind: string; value: string }[]) {
     const l = out.get(a.company_id);
     if (!l) continue;

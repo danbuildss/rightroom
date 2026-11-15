@@ -2,6 +2,17 @@
 
 Short records of technical decisions, newest first. Product decisions live in `PLAN.md`.
 
+## 2026-11-15: Details from the company's own website (data engine, part A)
+- **Dan approved showing these without review,** because they come from the company's own homepage: X, GitHub, LinkedIn company page, docs, partner page, and a **published** partnerships email (partner, partnerships, bd, biz, business, alliances or integrations at the company's own domain) or contact form.
+- **How they're read:** `shared/enrich.ts` reads only the homepage's `<a>` links. Social accounts are counted and the most-linked one wins (so the footer beats a one-off mention). Share, intent and status links, and reserved paths, are ignored. Nothing is guessed.
+- **Where they're stored:** X and GitHub as aliases, docs and partner page as sources attached to the company, and LinkedIn, email and contact form in `company_web_links` (migration 0015).
+- **Dan always wins:**
+  - existing values are never overwritten
+  - Dan's removals are recorded (`company_enrichment.blocked_json`) and never filled in again
+  - setting a detail by hand lifts that block
+  - removing docs or a partner page detaches the source but keeps it on record, because it may be evidence for a signal
+- **Hourly:** 5 verified companies not read yet, or not for 30 days, plus "Fill links from websites now" (10 at a time) and "Read their website again" per company.
+
 ## 2026-11-15: Grok test (3 USD budget)
 - **Manual only:**
   - The hourly schedule skips Grok sources unless `GROK_AUTO` is "on".

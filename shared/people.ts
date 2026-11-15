@@ -15,7 +15,17 @@ export interface FoundPerson {
 
 /** Roles worth contacting about a partnership. */
 const ROLE =
-  /\b(co-?founder|founder|ceo|chief executive|cto|chief technology|coo|head of (partnerships?|business development|bd|growth|ecosystem|developer relations|devrel|alliances|integrations|bizdev)|(vp|director|lead|manager)[, ]+(of )?(partnerships?|business development|bd|alliances|ecosystem|developer relations|devrel|integrations)|partnerships?( lead| manager)?|business development|bizdev|developer relations|devrel|developer advocate|ecosystem lead|alliances)\b/i;
+  /\b(co-?founder|founder|ceo|chief executive|cto|chief technology|coo|head of (partnerships?|business development|bd|growth|ecosystem|developer relations|devrel|alliances|integrations|bizdev)|(vp|director|lead|manager)[, ]+(of )?(partnerships?|business development|bd|alliances|ecosystem|developer relations|devrel|integrations)|partnerships( lead| manager)?|partnership (lead|manager)|business development|bizdev|developer relations|devrel|developer advocate|ecosystem lead|alliances)\b/i;
+
+/** Investors, advisors and board members: listed on many team pages, but not the company's own people to contact. */
+export const EXTERNAL =
+  /\b(investors?|angels?|angel investor|advis[eo]rs?|advisory|board|ventures?|capital|fund|vc|general partner|managing partner|limited partner|venture partner|backers?|mentors?)\b/i;
+/** A heading that starts a list of outside people… */
+const OUTSIDE_SECTION =
+  /^(our |meet our |backed by|supported by|with support from|trusted by)?\s*(investors?|backers?|angels?|angel investors|advisors?|advisory board|board( of directors)?|mentors|backed by.*|supported by.*)$/i;
+/** …and one that starts the company's own people again. */
+const TEAM_SECTION =
+  /^(our |meet (the|our) )?(team|founders|founding team|leadership|people|leadership team|core team)$/i;
 
 const NOT_NAME =
   /\b(team|about|our|the|and|with|join|careers|company|contact|blog|product|founders?|partners?|ceo|cto|coo|head|lead|inc|ltd|llc|labs?)\b/i;
@@ -36,6 +46,20 @@ const clean = (s: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
+/** A role that names another organisation ("Founder at OtherCo", "CEO, OtherCo") isn't this company's. */
+function roleIsElsewhere(role: string, companyName?: string): boolean {
+  if (!companyName) return false;
+  const other = role.match(/\b(?:at|of|@)\s+(.+)$/i)?.[1] ?? role.match(/,\s*([^,]+)$/)?.[1];
+  if (!other) return false;
+  const first =
+    companyName
+      .toLowerCase()
+      .replace(/\(.*?\)/g, "")
+      .trim()
+      .split(/\s+/)[0] ?? "";
+  return first.length > 1 && !other.toLowerCase().includes(first) && !ROLE.test(other);
+}
+
 function fromJsonLd(html: string): FoundPerson[] {
   const out: FoundPerson[] = [];
   const visit = (v: unknown) => {
@@ -45,7 +69,8 @@ function fromJsonLd(html: string): FoundPerson[] {
     const type = Array.isArray(o["@type"]) ? o["@type"].join(" ") : String(o["@type"] ?? "");
     if (/Person/.test(type) && typeof o.name === "string") {
       const role = typeof o.jobTitle === "string" ? o.jobTitle : null;
-      if (role && ROLE.test(role) && looksLikeName(o.name)) out.push({ name: clean(o.name), role: clean(role) });
+      if (role && ROLE.test(role) && !EXTERNAL.test(role) && looksLikeName(o.name))
+        out.push({ name: clean(o.name), role: clean(role) });
     }
     for (const k of ["founder", "founders", "employee", "employees", "member", "members", "@graph"]) visit(o[k]);
   };
@@ -67,8 +92,18 @@ function fromText(html: string): FoundPerson[] {
     .map(clean)
     .filter((b) => b.length > 0 && b.length < 120);
   const out: FoundPerson[] = [];
+  let outside = false;
   for (let i = 0; i < blocks.length; i++) {
     const b = blocks[i] as string;
+    if (OUTSIDE_SECTION.test(b)) {
+      outside = true;
+      continue;
+    }
+    if (TEAM_SECTION.test(b)) {
+      outside = false;
+      continue;
+    }
+    if (outside) continue;
     const inline = b.match(/^(.{4,60}?)\s*[,–—|-]\s*(.{3,80})$/);
     if (inline && looksLikeName(inline[1] ?? "") && !ROLE.test(inline[1] ?? "") && ROLE.test(inline[2] ?? "")) {
       out.push({ name: (inline[1] as string).trim(), role: (inline[2] as string).trim() });
@@ -83,10 +118,11 @@ function fromText(html: string): FoundPerson[] {
   return out;
 }
 
-export function extractPeople(html: string): FoundPerson[] {
+export function extractPeople(html: string, companyName?: string): FoundPerson[] {
   const seen = new Set<string>();
   const out: FoundPerson[] = [];
   for (const p of [...fromJsonLd(html), ...fromText(html)]) {
+    if (EXTERNAL.test(p.role) || roleIsElsewhere(p.role, companyName)) continue;
     const key = p.name.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);

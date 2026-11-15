@@ -101,6 +101,8 @@ describe("workspace isolation", () => {
       "company_candidates",
       "discovery_state",
       "grok_runs",
+      "app_settings",
+      "ai_calls",
       "sources",
       "signal_types",
       "signal_events",

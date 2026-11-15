@@ -90,7 +90,7 @@ export interface DiscoverResult {
   categories: { slug: string; label: string; kind: string }[];
   fit: {
     overall: number | null;
-    label: "strong" | "potential" | "needs_verification";
+    label: "strong" | "potential" | "needs_verification" | "below";
     evidence: "high" | "medium" | "low";
     why: string;
     factors: FactorView[];
@@ -101,6 +101,8 @@ export interface DiscoverResponse {
   understood: { categories: { slug: string; label: string }[]; goals: string[]; places: string[] };
   verified_total: number;
   results: DiscoverResult[];
+  /** Not a match on sector, but visibly open to partners. */
+  others?: DiscoverResult[];
   categories: { slug: string; label: string; full_label?: string; kind: string }[];
 }
 
@@ -129,6 +131,7 @@ export interface CompanyIntel {
     approach: string;
     approach_why: string;
     based_on: string;
+    structures?: { name: string; why: string }[];
   };
   goals: string[];
 }

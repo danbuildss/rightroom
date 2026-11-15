@@ -230,6 +230,13 @@ describe("Grok test", () => {
     ]);
     expect(runs.runs[0]?.answer_excerpt).toContain("partner API");
     expect(runs.runs[0]?.cost_usd).toBeGreaterThan(0);
+    expect((runs.runs[0] as unknown as { kept_posts: { url: string }[] }).kept_posts).toEqual([
+      expect.objectContaining({ url: `https://x.com/payco/status/${id}1` }),
+    ]);
+    const results = (await (await admin(noWeb, "GET", "/grok/results")).json()) as {
+      results: { url: string; search: string }[];
+    };
+    expect(results.results.some((r) => r.url === `https://x.com/payco/status/${id}1`)).toBe(true);
   });
 
   it("logs xAI's own error message when a search fails", async () => {

@@ -7,6 +7,8 @@ import { GOAL_LABELS, type Goal } from "./discover.ts";
 import { SIGNAL_TYPES, type SignalType } from "./signals.ts";
 
 export interface IntelInput {
+  /** The company's confirmed type (platform_api, ecosystem…), if any. */
+  orgType?: string | null;
   companyName: string;
   sectors: string[];
   goals: Goal[];
@@ -24,6 +26,8 @@ export interface Suggestions {
   approach_why: string;
   /** What the suggestion was built from, shown to the founder. */
   based_on: string;
+  /** Ways the two companies could work together, best first, each with why it fits. */
+  structures: { name: string; why: string }[];
 }
 
 const day = (iso: string | null) =>
@@ -88,7 +92,59 @@ export function suggest(input: IntelInput): Suggestions {
     ? `You want ${GOAL_LABELS[goal].toLowerCase()}, and their latest verified signal is: ${SIGNAL_TYPES[top.type].label.toLowerCase()}.`
     : `You want ${GOAL_LABELS[goal].toLowerCase()}; there's no verified signal yet, so keep it light.`;
 
+  // Partnership structures: from their verified signals and type, ordered by the founder's goals.
+  const has = (t: SignalType) => input.signals.some((x) => x.type === t);
+  const options: { goal: Goal; name: string; why: string | null }[] = [
+    {
+      goal: "integrations",
+      name: "Product integration",
+      why: has("api_or_sdk_released")
+        ? "They released an API or SDK you could build on."
+        : has("integration_announced")
+          ? "They're already integrating with other products."
+          : input.orgType === "platform_api"
+            ? "They're a platform other products build on."
+            : null,
+    },
+    {
+      goal: "distribution",
+      name: "Referral or reseller partnership",
+      why: has("partner_program_launched")
+        ? "They run a partner program, a ready-made route to their customers."
+        : has("collaboration_request")
+          ? "They've asked publicly for partners."
+          : null,
+    },
+    {
+      goal: "co_marketing",
+      name: "Joint launch or co-marketing",
+      why: has("product_launched")
+        ? "They just launched something and are looking for attention."
+        : has("collaboration_request")
+          ? "They're open to collaborating."
+          : null,
+    },
+    {
+      goal: "ecosystem",
+      name: "Join their ecosystem or program",
+      why: has("ecosystem_expansion")
+        ? "Their ecosystem is growing, with programs around it."
+        : input.orgType === "ecosystem"
+          ? "They run a network or protocol other teams build in."
+          : has("partner_program_launched")
+            ? "Their partner program is a way in."
+            : null,
+    },
+  ];
+  const rank = (g: Goal) => (input.goals.includes(g) ? input.goals.indexOf(g) : 10);
+  const structures = options
+    .filter((o): o is { goal: Goal; name: string; why: string } => o.why !== null)
+    .sort((a, b) => rank(a.goal) - rank(b.goal))
+    .slice(0, 3)
+    .map(({ name, why }) => ({ name, why }));
+
   return {
+    structures,
     for_you,
     for_them,
     suggested_role,

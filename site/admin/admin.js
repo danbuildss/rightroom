@@ -15,6 +15,7 @@ const SECTIONS = [
   ["companies", "Companies"],
   ["founders", "Founders"],
   ["grok", "Grok research"],
+  ["ai", "AI helpers"],
   ["spend", "Spend"],
 ];
 
@@ -1116,7 +1117,7 @@ views.candidates = async (view) => {
     const ready = list.filter((c) => c.site_checked_at);
     view.innerHTML = `${header("New companies", `${list.length} early-stage teams waiting · found every day on Show HN, new GitHub repos and in your Inbox. Approving one makes it a verified company (checked against its own website) with an "Early stage" profile; its links and logo fill in automatically.`)}
       <div class="toolbar">
-        <div class="row-actions"><button class="btn sm" type="button" data-find>Find new teams now</button><button class="btn sm" type="button" data-read>Read their websites (10)</button></div>
+        <div class="row-actions"><button class="btn sm" type="button" data-find>Find new teams now</button><button class="btn sm" type="button" data-read>Read their websites (10)</button><button class="btn sm" type="button" data-aicheck>Check with AI (5)</button><button class="btn sm" type="button" data-pickai>Select AI-recommended</button></div>
         <div class="row-actions">
           <label class="check"><input type="checkbox" data-all ${ready.length && ready.every((c) => picked.has(c.id)) ? "checked" : ""}> Select all ready (${ready.length})</label>
           <button class="btn sm blue" type="button" data-approve ${picked.size ? "" : "disabled"}>✓ Approve ${picked.size || ""}</button>
@@ -1129,14 +1130,15 @@ views.candidates = async (view) => {
         .map((c) => {
           const links = Object.entries(c.site_links || {});
           return `<article class="item cand${picked.has(c.id) ? " on" : ""}" data-id="${esc(c.id)}">
-          <div class="ih"><label class="pick"><input type="checkbox" data-pick ${picked.has(c.id) ? "checked" : ""} ${c.site_checked_at ? "" : "disabled"} aria-label="Select ${esc(c.site_name || c.name || c.domain)}"></label>
+          <div class="ih"><label class="pick"><input type="checkbox" data-pick ${picked.has(c.id) ? "checked" : ""} ${c.site_checked_at || c.ai ? "" : "disabled"} aria-label="Select ${esc(c.site_name || c.name || c.domain)}"></label>
             <div class="grow">
-              <input class="cname" data-name maxlength="200" value="${esc(c.site_name || c.name || c.domain)}" aria-label="Company name for ${esc(c.domain)}">
+              <input class="cname" data-name maxlength="200" value="${esc(c.ai?.name || c.site_name || c.name || c.domain)}" aria-label="Company name for ${esc(c.domain)}">
               <div class="meta">${link(`https://${c.domain}`, c.domain)} · found on ${link(c.found_url, VIA[c.found_via] ?? c.found_via)}${c.found_at ? ` · ${day(c.found_at)}` : ""}</div>
             </div>
             <span class="pill blue">${esc(TYPE_NAME[c.suggested_type] ?? "Startup")}</span>
           </div>
           <div class="ib">
+            ${c.ai ? `<p class="aiv ${c.ai.is_company ? "yes" : "no"}"><b>AI: ${c.ai.is_company ? "looks like a real company" : "probably not a company"}</b> · ${esc(c.ai.reason)}${c.ai.is_company ? `<br>${c.ai.name ? `<b>${esc(c.ai.name)}</b> · ` : ""}${c.ai.one_liner ? esc(c.ai.one_liner) : ""}${c.ai.org_type ? ` · ${esc(TYPE_NAME[c.ai.org_type] ?? c.ai.org_type)}` : ""}${c.ai.stage && c.ai.stage !== "unknown" ? ` · ${esc(c.ai.stage)}` : ""}${c.ai.sectors?.length ? ` · ${c.ai.sectors.map(esc).join(", ")}` : ""}` : ""}</p>` : ""}
             ${c.site_checked_at ? (c.site_description ? `<p>${esc(c.site_description)}</p>` : `<p class="meta">No description on their homepage${c.site_note ? `: ${esc(c.site_note)}` : "."}</p>`) : `<p class="meta">Website not read yet.</p>`}
             <p class="meta">Found as: “${esc(c.found_title)}”</p>
             ${links.length ? `<p class="meta">From their site: ${links.map(([k, v]) => (k === "email" ? esc(v) : link(v, k))).join(" · ")}</p>` : ""}
@@ -1168,6 +1170,14 @@ views.candidates = async (view) => {
         const added = r.sources.reduce((n, x) => n + x.added, 0);
         const errs = r.sources.filter((x) => x.error).map((x) => `${VIA[x.source] ?? x.source}: ${x.error}`);
         toast(`${added} new teams found${errs.length ? ` (${errs.join("; ")})` : ""}.`, { bad: errs.length > 0 });
+        await render();
+      } else if (t.closest("[data-aicheck]")) {
+        t.closest("[data-aicheck]").disabled = true;
+        const r = await api("POST", "/candidates/ai-check");
+        toast(r.errors.length ? `${r.checked} checked · ${r.errors[0]}` : `${r.checked} checked by AI.`, { bad: r.errors.length > 0 && !r.checked });
+        await render();
+      } else if (t.closest("[data-pickai]")) {
+        for (const c of list) if (c.ai?.is_company) picked.add(c.id);
         await render();
       } else if (t.closest("[data-read]")) {
         const r = await api("POST", "/candidates/read-sites");
@@ -1278,15 +1288,104 @@ views.contacts = async (view) => {
   };
 };
 
+// ---------- AI helpers (Bankr LLM gateway) ----------
+views.ai = async (view) => {
+  let models = null;
+  const render = async () => {
+    const a = await api("GET", "/ai");
+    const pct = a.budget.cap ? Math.min(100, (a.budget.spent / a.budget.cap) * 100) : 0;
+    view.innerHTML = `${header("AI helpers", "Your Bankr LLM credit, used in the back office only: it checks whether new teams are real companies (with a clean one-liner, type and sectors) and reads team pages for contacts, leaving out investors. Only public website text is sent; never founders' data. You still approve everything.")}
+      <div class="panel"><h2>Status <span>Rightroom's estimate · Bankr's dashboard shows the real balance</span></h2><div class="pad">
+        <div class="spend-n">${usd(a.budget.spent)} <span>spent of ${usd(a.budget.cap)} this month · ${usd(a.budget.left)} left · ${a.month.calls} calls${a.month.failed ? ` (${a.month.failed} failed)` : ""}</span></div>
+        <div class="meter"><i data-width="${pct.toFixed(1)}"></i></div>
+        <p class="meta">${a.key_set ? `Key set · model: <b>${a.model ? esc(a.model) : "none chosen yet"}</b> · ${a.on ? "<b>on</b>: new companies and contacts are checked a few each hour" : "off until you choose a model"}` : "<b>Off:</b> add <code>BANKR_LLM_KEY</code> as a secret in Cloudflare (Workers → rightroom → Settings). Optional variables: <code>AI_MONTHLY_CAP_USD</code> (default 20), <code>AI_PRICE_INPUT_PER_M_USD</code> and <code>AI_PRICE_OUTPUT_PER_M_USD</code> for the chosen model's prices (defaults 3 and 15, cautious)."}</p>
+      </div></div>
+      ${
+        a.key_set
+          ? `<div class="panel"><h2>Model <span>A fast, cheap model is enough (for example a Haiku, Flash or mini model)</span></h2><div class="pad">
+        <form class="toolbar flat" id="ai-model">
+          <label class="sr" for="ai-pick">Model</label>
+          ${models ? `<select id="ai-pick" name="model">${models.map((m) => `<option ${m === a.model ? "selected" : ""}>${esc(m)}</option>`).join("")}</select>` : `<input id="ai-pick" name="model" maxlength="120" placeholder="model id" value="${esc(a.model ?? "")}">`}
+          <button class="btn sm dark" type="submit">Use this model</button>
+          ${models ? "" : `<button class="btn sm" type="button" data-models>Load Bankr's model list</button>`}
+          <button class="btn sm" type="button" data-aitest ${a.model ? "" : "disabled"}>Test (tiny call)</button>
+        </form>
+      </div></div>`
+          : ""
+      }
+      <div class="panel"><h2>Recent calls</h2>${
+        a.recent.length
+          ? `<table><tr><th>When</th><th>For</th><th class="hide-m">Model</th><th>Tokens</th><th>Cost</th></tr>${a.recent
+              .map(
+                (r) => `<tr><td>${day(r.created_at)} ${new Date(r.created_at).toISOString().slice(11, 16)}</td><td>${esc(r.purpose)}${r.status === "failed" ? `<br><span class="warn-t">${esc(r.error ?? "failed")}</span>` : ""}</td><td class="hide-m">${esc(r.model)}</td><td>${r.input_tokens} in · ${r.output_tokens} out</td><td>${usd(r.estimated_usd, 4)}</td></tr>`,
+              )
+              .join("")}</table>`
+          : `<div class="pad meta">No calls yet.</div>`
+      }</div>`;
+    fillMeters(view);
+  };
+  await render();
+  view.onclick = async (e) => {
+    const t = e.target;
+    try {
+      if (t.closest("[data-models]")) {
+        ({ models } = await api("GET", "/ai/models"));
+        toast(`${models.length} models available.`);
+        await render();
+      } else if (t.closest("[data-aitest]")) {
+        const r = await api("POST", "/ai/test");
+        toast(`It works. The model answered: ${r.answer}`);
+        await render();
+      }
+    } catch (err) {
+      if (err.status !== 401) toast(err.message, { bad: true });
+    }
+  };
+  view.onsubmit = async (e) => {
+    if (e.target.id !== "ai-model") return;
+    e.preventDefault();
+    const model = e.target.model.value.trim();
+    if (!model) return;
+    try {
+      await api("POST", "/ai/model", { model });
+      toast(`Using ${model}.`);
+      await render();
+    } catch (err) {
+      if (err.status !== 401) toast(err.message, { bad: true });
+    }
+  };
+};
+
 // ---------- Grok research (the 3 USD test) ----------
 const usd = (n, d = 2) => (n === null || n === undefined ? "—" : `$${Number(n).toFixed(d)}`);
 views.grok = async (view) => {
   const render = async () => {
-    const [g, { suggestions }, { companies }] = await Promise.all([
+    const [g, { suggestions }, { companies }, { results }] = await Promise.all([
       api("GET", "/grok"),
       api("GET", "/grok/handles"),
       api("GET", "/companies?status=verified&limit=200"),
+      api("GET", "/grok/results"),
     ]);
+    const STATE = { new: ["blue", "In your Inbox"], promoted: ["ok", "Made a signal"], dismissed: ["grey", "Dismissed"] };
+    const resultsPanel = `<div class="panel"><h2>Results <span>Every post Grok found, newest first · rate them here or turn them into signals in the Inbox</span></h2>
+      ${
+        results.length
+          ? `<div class="gres">${results
+              .map(
+                (r) => `<article class="gpost" data-rid="${esc(r.id)}">
+              <div class="ph"><span class="meta">${esc(r.search.replace(/^Grok (test|research): /, ""))}${r.published_at ? ` · ${day(r.published_at)}` : ""}</span><span class="pill ${STATE[r.status]?.[0] ?? "grey"}">${STATE[r.status]?.[1] ?? esc(r.status)}</span></div>
+              <p class="gtitle">${esc(r.title)}</p>
+              ${r.excerpt && r.excerpt !== r.title ? `<p class="meta">${esc(r.excerpt)}</p>` : ""}
+              <div class="row-actions">${link(r.url, "Open the post")}${r.suggested_domain ? ` <span class="meta">· ${esc(r.suggested_domain)}</span>` : ""}
+                <span class="grow"></span>
+                <button class="btn sm${r.useful === 1 ? " blue" : ""}" type="button" data-grate="1" aria-pressed="${r.useful === 1}">👍 Useful</button>
+                <button class="btn sm${r.useful === 0 ? " dark" : ""}" type="button" data-grate="0" aria-pressed="${r.useful === 0}">👎 Not useful</button>
+              </div>
+            </article>`,
+              )
+              .join("")}</div>`
+          : `<div class="pad meta">Nothing yet. Run a search or research a company; what Grok finds appears here.</div>`
+      }</div>`;
     const pct = g.budget.cap ? Math.min(100, (g.budget.spent / g.budget.cap) * 100) : 0;
     const topics = g.searches.filter((x) => x.kind === "topic");
     const research = g.searches.filter((x) => x.kind === "company");
@@ -1325,6 +1424,8 @@ views.grok = async (view) => {
         <p class="help">Posts land in your Inbox to rate and turn into signals. A suggested X handle appears below; it only becomes the company's X link when you accept it.</p>
         <div id="grok-co-result"></div>
       </div>${research.length ? table(research, "") : ""}</div>
+
+      ${resultsPanel}
 
       <div class="panel"><h2>X handles to confirm <span>From company research, backed by a post from that account</span></h2>
         ${
@@ -1378,6 +1479,13 @@ views.grok = async (view) => {
         const { outcome } = await api("POST", `/watched-sources/${encodeURIComponent(b.dataset.run)}/run`);
         toast(outcome.status === "ok" ? `${outcome.items_new} new results in your Inbox.` : outcome.error || "Didn't run.", { bad: outcome.status === "failed" });
         await render();
+      } else if (t.closest("[data-grate]")) {
+        const b = t.closest("[data-grate]");
+        const id = b.closest("[data-rid]").dataset.rid;
+        const useful = b.dataset.grate === "1";
+        const pressed = b.getAttribute("aria-pressed") === "true";
+        await api("POST", `/inbox/${encodeURIComponent(id)}/rate`, { useful: pressed ? null : useful });
+        await render();
       } else if (t.closest("[data-details]")) {
         const b = t.closest("[data-details]");
         const row = view.querySelector(`[data-details-for="${CSS.escape(b.dataset.details)}"]`);
@@ -1396,7 +1504,9 @@ views.grok = async (view) => {
               <div class="ph"><b>${day(r.ran_at)} ${new Date(r.ran_at).toISOString().slice(11, 16)} UTC</b><span class="pill ${r.status === "ok" ? "ok" : "bad"}">${r.status === "ok" ? "Ran" : "Failed"}</span></div>
               <p class="meta">Asked: “${esc(r.query)}” · posts from ${esc(r.from_date)} · up to ${r.max_posts} · model ${esc(r.model)}</p>
               ${r.error ? `<p class="warn-t">${esc(r.error)}</p>` : ""}
-              ${r.status === "ok" ? `<p class="meta">xAI read ${r.posts_read} posts · Grok listed ${r.listed} · kept ${r.kept} · dropped ${r.listed - r.kept}${r.cost_usd !== null ? ` · cost ${usd(r.cost_usd, 3)}` : ""}</p>` : ""}
+              ${r.status === "ok" ? `<p><b>${r.kept} ${r.kept === 1 ? "post" : "posts"} found</b>${r.cost_usd !== null ? ` <span class="meta">· cost ${usd(r.cost_usd, 3)}</span>` : ""}</p>` : ""}
+              ${r.kept_posts?.length ? `<ul class="gkept">${r.kept_posts.map((k) => `<li>${link(k.url, k.title)}${k.published_at ? ` <span class="meta">· ${day(k.published_at)}</span>` : ""}</li>`).join("")}</ul>` : ""}
+              ${r.status === "ok" ? `<p class="meta">xAI read ${r.posts_read} posts · Grok listed ${r.listed} · kept ${r.kept} · dropped ${r.listed - r.kept}</p>` : ""}
               ${r.dropped.length ? `<details><summary>Why ${r.dropped.length} were dropped</summary><ul>${r.dropped.map((d) => `<li>${esc(d.url)}: ${esc(d.reason)}</li>`).join("")}</ul></details>` : ""}
               ${r.answer_excerpt ? `<details><summary>Grok's answer (start)</summary><pre class="gans">${esc(r.answer_excerpt)}</pre></details>` : ""}
               ${r.status === "ok" && r.listed === 0 ? `<p class="meta">Grok found no matching posts in this period. Try a broader question or more days.</p>` : ""}

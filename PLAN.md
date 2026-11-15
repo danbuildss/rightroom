@@ -39,7 +39,7 @@ Three surfaces:
 
 Decisions:
 - **A. Access:** invite-only pilot; founders sign in with Google once invited. Request access on the site; Dan invites.
-- **B. Free start:** searches are turned into filters by rules, not AI. Fit uses the fixed formula (§5): **Strong fit ≥ 75, Potential fit 55–74**, below that not shown as a match. A company with no sector, technology or keyword in common with the founder is never labelled a fit (v1.3). Evidence confidence (High/Medium/Low) is shown separately. Explanations are curated. AI comes later, behind a spending cap (§9).
+- **B. Free start:** searches are turned into filters by rules, not AI. Fit uses the fixed formula (§5): **Strong fit ≥ 75, Potential fit 55–74**, below that not shown as a match. A company with no sector, technology or keyword in common with the founder is never labelled a fit (v1.3). Evidence confidence (High/Medium/Low) is shown separately. Explanations are curated. AI comes later, behind a spending cap (§9). (2026-11-15: back-office AI helpers on public website text only, through Dan's Bankr LLM credit, with a monthly cap; see docs/DECISIONS.md.)
 - **C. Contacts:** the role that owns partnerships, the company's official channels, and a named person **only** when a public source shows them, with the last-checked date and a confidence label. No guessed emails, no LinkedIn scraping.
 
 Build order (each step mocked up first, then one PR):

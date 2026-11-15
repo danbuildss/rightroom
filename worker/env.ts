@@ -22,6 +22,13 @@ export interface Env {
   GROK_MONTHLY_CAP_USD?: string;
   /** "on" lets Grok searches run on the hourly schedule; otherwise only from the back office. */
   GROK_AUTO?: string;
+  /** Bankr LLM gateway key (secret) for the AI helpers; without it they are off. */
+  BANKR_LLM_KEY?: string;
+  /** Monthly cap for AI helper spend in USD (default 20). */
+  AI_MONTHLY_CAP_USD?: string;
+  /** Price estimates per million tokens for the chosen model (defaults are cautious). */
+  AI_PRICE_INPUT_PER_M_USD?: string;
+  AI_PRICE_OUTPUT_PER_M_USD?: string;
   GROK_PRICE_PER_POST_USD?: string;
   GROK_PRICE_INPUT_PER_M_USD?: string;
   GROK_PRICE_OUTPUT_PER_M_USD?: string;

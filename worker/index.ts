@@ -1,5 +1,6 @@
 import { createApp } from "./app.ts";
 import { purgeOldAccessRequests } from "./db/access.ts";
+import { aiCheckNewCandidates } from "./db/ai.ts";
 import { runDueSources } from "./db/collector.ts";
 import { discover } from "./db/discovery.ts";
 import { enrichMissing } from "./db/enrich.ts";
@@ -42,7 +43,7 @@ export default {
     );
     // Points of contact: 3 companies' own team/about pages an hour; suggestions wait for Dan.
     ctx.waitUntil(
-      findMissingContacts(env.DB, { limit: 3 }).then((r) => {
+      findMissingContacts(env.DB, { limit: 3, env }).then((r) => {
         const n = r.reduce((sum, x) => sum + x.added, 0);
         if (r.length) console.log(`contacts: ${r.length} companies read, ${n} suggestions`);
       }),

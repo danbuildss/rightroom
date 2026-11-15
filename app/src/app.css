@@ -3396,3 +3396,44 @@ button.hstat {
   color: var(--blue);
   flex: none;
 }
+
+/* Company page: partnership structures; Discover: outside your focus */
+.structs ul {
+  list-style: none;
+  margin: 6px 0 10px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.structs li {
+  display: grid;
+  gap: 2px;
+  background: var(--warm-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 14px;
+}
+.structs li span {
+  color: var(--muted);
+  font-size: 13px;
+}
+.iacts .linkbtn {
+  display: block;
+  margin-top: 8px;
+  font-size: 13.5px;
+}
+.others {
+  margin-top: 26px;
+  padding-top: 18px;
+  border-top: 1px dashed var(--line);
+}
+.othersh {
+  font-size: 19px;
+  margin: 0 0 4px;
+}
+.fit.below {
+  background: var(--warm-2);
+  color: #3a3834;
+  border: 1px solid var(--line);
+}

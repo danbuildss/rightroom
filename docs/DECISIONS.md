@@ -2,6 +2,31 @@
 
 Short records of technical decisions, newest first. Product decisions live in `PLAN.md`.
 
+## 2026-11-15: Discover and company profiles (Explore, step 4)
+- **Discover no longer hides open companies:** "Open to partners, outside your focus" lists up to 8 companies that share no sector or keyword with the founder (so they aren't a fit) but have readiness of 3 or more, such as a fresh partner program or a collaboration request. They're labelled "Open to partners", with no score. A link leads to Explore.
+- **Possible partnership structures** on the company page: up to 3, chosen from verified signals and the confirmed company type and ordered by the founder's goals. Each has its reason (product integration, referral or reseller, joint launch or co-marketing, joining their ecosystem). Labelled as our suggestion.
+- **Save → Pipeline:** once saved, the company page shows "Open in Pipeline →", and it reloads when a save happens anywhere.
+
+## 2026-11-15: AI helpers through Dan's Bankr LLM gateway
+- **Approved by Dan (about 300 USD of Bankr credit).** Back office only, and only public website text is sent: never founders' profiles, drafts, notes or pipeline. The privacy policy says public pages may be processed by AI services and that workspace data isn't.
+- **The gateway:** OpenAI-compatible (`https://llm.bankr.bot/v1/chat/completions`, Bearer `BANKR_LLM_KEY`, a Cloudflare secret). Dan picks the model in Back office → AI helpers from Bankr's `/v1/models` list (`app_settings.ai_model`). It's off without both the key and a model.
+- **Spend:**
+  - every call is recorded in `ai_calls` (migration 0020), with tokens and an estimate based on `AI_PRICE_INPUT/OUTPUT_PER_M_USD` (defaults 3 and 15, cautious)
+  - no call starts once `AI_MONTHLY_CAP_USD` (default 20) would be passed
+- **What the AI helps with:**
+  - **New companies:** is it a real company or product team (or a blog, portfolio, list or library), plus name, one-liner, type, sectors from our list only, stage and audience. Stored on the candidate as a suggestion; approving uses it, and Dan's edits win. 5 candidates per hour, plus a button.
+  - **Contacts:** people who work at the company in useful roles, leaving out investors and advisors. **A name is kept only if it appears exactly in the page text,** so the AI can't invent anyone. Everything is still approved by Dan.
+- **What it never does:** set a fit score, verify anything on its own, or see client data.
+
+## 2026-11-15: Engine tuning after Dan's first run
+- **Contacts:**
+  - "Partner" on its own (as in "Partner at a fund") no longer counts as a partnerships role; it must be "Partnerships", "Partnership lead" and so on.
+  - Investors, angels, advisors, board members, mentors, and roles at venture firms or funds are skipped.
+  - People listed under an "Investors", "Backed by", "Advisors" or "Board" heading are skipped until a team or leadership heading.
+  - A role naming another organisation ("Founder at OtherCo") is skipped.
+  - Migration 0019 rejects existing waiting suggestions that look like investors, with a reason.
+- **Grok, one place to see results:** the Grok page lists every post Grok found (search, date, text, link, state, 👍 / 👎). Run details now lead with the posts kept (`grok_runs.kept_json`) and put the counts after.
+
 ## 2026-11-15: Grok fix: match cited posts by number, and log every run
 - **Bug:** Grok's answer names posts as `x.com/<account>/status/<id>`, while xAI often cites them as `x.com/i/status/<id>`. We compared whole links, so real posts were dropped as "not cited", and Dan's first searches found nothing. Posts are now matched on their status number. When the citation names the account, that name wins over Grok's. Handle and people evidence must still be a cited post by that same account (when the citation doesn't name the account, Grok's claim is used and Dan checks the link).
 - **Run log (`grok_runs`, migration 0018):** every Grok call records:

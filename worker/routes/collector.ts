@@ -20,6 +20,7 @@ import {
 import {
   decideHandle,
   grokStatus,
+  listGrokResults,
   listGrokRuns,
   listHandleSuggestions,
   rateItem,
@@ -104,6 +105,7 @@ export const collector = new Hono<AppEnv>()
       return fail(c, err);
     }
   })
+  .get("/grok/results", async (c) => c.json({ results: await listGrokResults(c.env.DB) }))
   .get("/grok/runs", async (c) => c.json({ runs: await listGrokRuns(c.env.DB, c.req.query("source_id") || undefined) }))
   .get("/grok/handles", async (c) => c.json({ suggestions: await listHandleSuggestions(c.env.DB) }))
   .post("/grok/handles/:id", async (c) => {

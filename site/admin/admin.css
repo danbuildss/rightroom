@@ -217,3 +217,14 @@ tr.on td{background:var(--blue-tint)}
 .gans{white-space:pre-wrap;word-break:break-word;font:12px/1.5 "Geist Mono",monospace;background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px;max-height:260px;overflow:auto}
 .grun details{margin:4px 0;font-size:13px}
 .grun ul{margin:4px 0 0;padding-left:18px;font-size:12.5px;word-break:break-all}
+.gres{display:grid;gap:0}
+.gpost{padding:12px 18px;border-top:1px solid var(--line)}
+.gpost:first-child{border-top:0}
+.gpost .ph{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.gtitle{margin:4px 0;font-weight:600}
+.gpost .row-actions{align-items:center}
+.gpost .grow{flex:1}
+.gkept{margin:4px 0 6px;padding-left:18px;font-size:13.5px}
+.aiv{border-radius:10px;padding:8px 10px;font-size:14px;margin:0 0 8px}
+.aiv.yes{background:var(--green-bg);color:#05603a}
+.aiv.no{background:var(--amber-bg);color:var(--amber-ink)}

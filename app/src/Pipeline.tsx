@@ -508,6 +508,7 @@ const PEEK_LABELS = {
   strong: "Strong fit",
   potential: "Potential fit",
   needs_verification: "Needs verification",
+  below: "Open to partners",
 } as const;
 
 function Peek({ slug, children }: { slug: string; children: ReactNode }) {

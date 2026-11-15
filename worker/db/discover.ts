@@ -244,7 +244,19 @@ export async function discover(db: D1Database, workspaceId: string, input: Disco
     .sort((a, b) => LABEL_RANK[a.fit.label] - LABEL_RANK[b.fit.label] || b.fit.overall - a.fit.overall)
     .slice(0, 50)
     .map((r) => view(r, data.saved.get(r.co.id)));
+  // Not a match on sector, but visibly open to partners (a fresh partner program, collaboration request…).
+  const others = data.scored
+    .filter((r) => !input.category || r.categories.some((c) => c.slug === input.category))
+    .filter((r) => r.fit.label === "below" && (r.fit.factors.find((f) => f.factor === "readiness")?.score ?? 0) >= 3)
+    .sort(
+      (a, b) =>
+        (b.fit.factors.find((f) => f.factor === "readiness")?.score ?? 0) -
+          (a.fit.factors.find((f) => f.factor === "readiness")?.score ?? 0) || b.fit.overall - a.fit.overall,
+    )
+    .slice(0, 8)
+    .map((r) => view(r, data.saved.get(r.co.id)));
   return {
+    others,
     understood: {
       categories: data.target.map((slug) => ({
         slug,
@@ -278,6 +290,7 @@ export async function companyIntel(db: D1Database, workspaceId: string, slug: st
     .filter((c) => c.kind === "channel")
     .map((c) => ({ label: c.channel_label, url: c.url, source_url: c.source_url, last_checked_at: c.last_checked_at }));
   const suggestions = suggest({
+    orgType: row.co.profile_status === "confirmed" ? row.co.org_type : null,
     companyName: row.co.name,
     sectors: row.categories.filter((c) => c.kind === "sector").map((c) => c.label),
     goals: data.goals,

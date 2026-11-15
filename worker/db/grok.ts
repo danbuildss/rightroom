@@ -309,10 +309,27 @@ export async function listGrokRuns(db: D1Database, sourceId?: string, limit = 10
   const { results } = await db
     .prepare(
       `SELECT id, watched_source_id, ran_at, status, model, query, from_date, max_posts, posts_read, listed, kept,
-         dropped_json, answer_excerpt, error, cost_usd FROM grok_runs
+         dropped_json, kept_json, answer_excerpt, error, cost_usd FROM grok_runs
        ${sourceId ? "WHERE watched_source_id = ?" : ""} ORDER BY ran_at DESC LIMIT ?`,
     )
     .bind(...(sourceId ? [sourceId, limit] : [limit]))
     .all<Record<string, unknown>>();
-  return results.map((r) => ({ ...r, dropped: JSON.parse(String(r.dropped_json ?? "[]")) }));
+  return results.map((r) => ({
+    ...r,
+    dropped: JSON.parse(String(r.dropped_json ?? "[]")),
+    kept_posts: JSON.parse(String(r.kept_json ?? "[]")),
+  }));
+}
+
+/** Everything Grok found, newest first, in one list: the post, which search found it, and its state. */
+export async function listGrokResults(db: D1Database, limit = 40) {
+  const { results } = await db
+    .prepare(
+      `SELECT i.id, i.title, i.url, i.excerpt, i.published_at, i.found_at, i.status, i.useful, i.suggested_domain,
+         w.name AS search FROM collected_items i JOIN watched_sources w ON w.id = i.watched_source_id
+       WHERE w.adapter = 'grok_x_search' ORDER BY i.found_at DESC LIMIT ?`,
+    )
+    .bind(limit)
+    .all();
+  return results;
 }

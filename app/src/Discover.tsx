@@ -10,7 +10,12 @@ const GOAL_LABELS: Record<string, string> = {
   ecosystem: "Ecosystem",
 };
 const PLACE_LABELS: Record<string, string> = { us: "US", uk: "UK" };
-const LABELS = { strong: "Strong fit", potential: "Potential fit", needs_verification: "Needs verification" } as const;
+const LABELS = {
+  strong: "Strong fit",
+  potential: "Potential fit",
+  needs_verification: "Needs verification",
+  below: "Open to partners",
+} as const;
 const EVIDENCE = { high: "High", medium: "Medium", low: "Low" } as const;
 
 const day = (iso: string | null) =>
@@ -42,7 +47,15 @@ function useRotatingPlaceholder(first: string, paused: boolean) {
 const title = (s: string) => s.replace(/\b\w/g, (c) => c.toUpperCase());
 const safeHref = (url: string) => (/^https?:\/\//i.test(url) ? url : undefined);
 
-export function Discover({ suggestion, onOpen }: { suggestion: string; onOpen: (slug: string) => void }) {
+export function Discover({
+  suggestion,
+  onOpen,
+  onExplore,
+}: {
+  suggestion: string;
+  onOpen: (slug: string) => void;
+  onExplore?: () => void;
+}) {
   const [q, setQ] = useState("");
   const [submitted, setSubmitted] = useState("");
   const [cats, setCats] = useState<string[] | undefined>(undefined);
@@ -224,6 +237,36 @@ export function Discover({ suggestion, onOpen }: { suggestion: string; onOpen: (
               />
             ))}
           </div>
+          {data.others?.length ? (
+            <section className="others" aria-labelledby="others-h">
+              <h2 id="others-h" className="othersh">
+                Open to partners, outside your focus
+              </h2>
+              <p className="hint">
+                These don't share your sector or keywords, so they aren't scored as a fit, but they're openly looking
+                for partners right now.
+              </p>
+              <div className={loading ? "results dim" : "results"}>
+                {data.others.map((r) => (
+                  <ResultCard
+                    key={r.slug}
+                    r={r}
+                    open={open === r.slug}
+                    onToggle={() => setOpen(open === r.slug ? null : r.slug)}
+                    onOpen={() => onOpen(r.slug)}
+                  />
+                ))}
+              </div>
+            </section>
+          ) : null}
+          {onExplore ? (
+            <p className="hint">
+              Want to look wider?{" "}
+              <button type="button" className="linkbtn" onClick={onExplore}>
+                Browse every verified company in Explore →
+              </button>
+            </p>
+          ) : null}
           {data.results.length === 0 ? (
             <div className="note">
               No verified company matches this yet. Try fewer words or another sector. The list grows as more companies
@@ -264,7 +307,7 @@ export function ResultCard({
         </h2>
         <div className="dbadges">
           <span className={`fit ${r.fit.label}`}>{LABELS[r.fit.label]}</span>
-          {r.fit.overall !== null ? (
+          {r.fit.overall !== null && r.fit.label !== "below" ? (
             <span className="dscore">
               {r.fit.overall}
               <small> / 100</small>

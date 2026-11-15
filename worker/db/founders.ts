@@ -199,8 +199,23 @@ export async function updateProfile(db: D1Database, workspaceId: string, u: Prof
 }
 
 /** Deletes the founder's workspace; foreign keys remove the founder, sessions and profile with it. */
+/**
+ * Deletes the founder's workspace (foreign keys remove the founder, sessions, profile, drafts and
+ * pipeline with it) and their original access request, matched by email or X handle.
+ */
 export async function deleteFounderWorkspace(db: D1Database, workspaceId: string): Promise<void> {
-  await db.prepare("DELETE FROM workspaces WHERE id = ?").bind(workspaceId).run();
+  const who = await db
+    .prepare("SELECT email, x_handle FROM founders WHERE workspace_id = ?")
+    .bind(workspaceId)
+    .first<{ email: string | null; x_handle: string | null }>();
+  await db.batch([
+    db
+      .prepare(
+        "DELETE FROM access_requests WHERE (email IS NOT NULL AND email = ?) OR (x_handle IS NOT NULL AND x_handle = ?)",
+      )
+      .bind(who?.email ?? null, who?.x_handle ?? null),
+    db.prepare("DELETE FROM workspaces WHERE id = ?").bind(workspaceId),
+  ]);
 }
 
 export async function listFounders(db: D1Database) {

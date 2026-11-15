@@ -98,7 +98,7 @@ export interface DiscoverResponse {
   understood: { categories: { slug: string; label: string }[]; goals: string[]; places: string[] };
   verified_total: number;
   results: DiscoverResult[];
-  categories: { slug: string; label: string; kind: string }[];
+  categories: { slug: string; label: string; full_label?: string; kind: string }[];
 }
 
 export function discover(params: { q: string; cats?: string[]; goals?: string[]; category?: string }) {

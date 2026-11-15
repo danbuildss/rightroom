@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { type PipelineItem, pipeline, type Stage } from "./api.ts";
 import { DraftPanel } from "./DraftPanel.tsx";
+import { useFocusTrap } from "./ui.tsx";
 
 const STAGES: Stage[] = ["shortlisted", "contacted", "in_discussion", "partnered"];
 const STAGE_LABELS: Record<Stage, string> = {
@@ -235,6 +236,7 @@ function Detail({
   onChanged: () => void;
   onOpenCompany: () => void;
 }) {
+  const trapRef = useFocusTrap<HTMLDivElement>();
   const [notes, setNotes] = useState(item.notes ?? "");
   const [events, setEvents] = useState<{ at: string; text: string }[]>([]);
   const [drafting, setDrafting] = useState(false);
@@ -291,7 +293,7 @@ function Detail({
   return (
     <>
       <button type="button" className="overlay" aria-label="Close" onClick={onClose} />
-      <aside className="panel" role="dialog" aria-modal="true" aria-label={item.name}>
+      <div ref={trapRef} className="panel" role="dialog" aria-modal="true" aria-label={item.name}>
         <div className="panelh">
           <h2>{item.name}</h2>
           <button type="button" className="linkbtn x" onClick={onClose} aria-label="Close">
@@ -338,7 +340,7 @@ function Detail({
           >
             Save notes
           </button>
-          <h4 className="tlh">Timeline</h4>
+          <h3 className="tlh">Timeline</h3>
           <ul className="tl">
             {events.map((e) => (
               <li key={`${e.at}-${e.text}`}>
@@ -384,7 +386,7 @@ function Detail({
             {msg}
           </p>
         </div>
-      </aside>
+      </div>
     </>
   );
 }

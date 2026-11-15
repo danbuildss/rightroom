@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 
 export function Logo() {
   return (
@@ -23,4 +23,48 @@ export function Screen({ right, children }: { right?: ReactNode; children: React
       </main>
     </div>
   );
+}
+
+/**
+ * Keeps keyboard focus inside an open panel (Tab and Shift+Tab wrap around), moves focus into it
+ * when it opens, and returns focus to whatever opened it when it closes.
+ */
+export function useFocusTrap<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    const node = ref.current;
+    const focusables = () =>
+      node
+        ? [
+            ...node.querySelectorAll<HTMLElement>(
+              'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+            ),
+          ].filter((el) => el.offsetParent !== null || el === document.activeElement)
+        : [];
+    if (node && !node.contains(document.activeElement)) focusables()[0]?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Tab" || !node) return;
+      const items = focusables();
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (!first || !last) return;
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      } else if (!node.contains(document.activeElement)) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      if (opener && document.contains(opener)) opener.focus();
+    };
+  }, []);
+  return ref;
 }

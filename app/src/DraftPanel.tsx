@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { drafts, type GeneratedDraft, type SavedDraft, type Variant } from "./api.ts";
+import { useFocusTrap } from "./ui.tsx";
 
 const MAX: Record<Variant, number> = { first: 1200, shorter: 600, follow_up: 800 };
 const VARIANT_LABELS: Record<Variant, string> = { first: "First message", shorter: "Shorter", follow_up: "Follow-up" };
@@ -30,6 +31,7 @@ export function DraftPanel({
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const closeRef = useRef<HTMLButtonElement>(null);
+  const trapRef = useFocusTrap<HTMLDivElement>();
 
   const loadList = useCallback(() => {
     drafts
@@ -137,7 +139,13 @@ export function DraftPanel({
   return (
     <>
       <button type="button" className="overlay" aria-label="Close draft" onClick={onClose} />
-      <aside className="panel" role="dialog" aria-modal="true" aria-label={`Draft introduction for ${companyName}`}>
+      <div
+        ref={trapRef}
+        className="panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Draft introduction for ${companyName}`}
+      >
         <div className="panelh">
           <h2>Draft introduction · {companyName}</h2>
           <button type="button" className="linkbtn x" onClick={onClose} ref={closeRef} aria-label="Close">
@@ -207,7 +215,7 @@ export function DraftPanel({
                 <p className="warnline">Replace the part in [ brackets ] with your own words before sending.</p>
               ) : null}
               <div className="used">
-                <h4>What this draft uses</h4>
+                <h3 className="ph3">What this draft uses</h3>
                 <ul>
                   {gen.sources.map((s) => (
                     <li key={s.text}>
@@ -276,7 +284,7 @@ export function DraftPanel({
               "Rightroom never sends anything. Copy it, send it yourself, then mark it sent so you can follow up."}
           </p>
         </div>
-      </aside>
+      </div>
     </>
   );
 }

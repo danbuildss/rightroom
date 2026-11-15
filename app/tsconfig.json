@@ -14,5 +14,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src", "vite.config.ts", "../shared/founder.ts"]
+  "include": ["src", "vite.config.ts", "../shared/founder.ts", "../tests/a11y.test.ts"]
 }

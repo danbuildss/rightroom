@@ -16,5 +16,6 @@
     "noEmit": true,
     "allowImportingTsExtensions": true
   },
-  "include": ["shared", "scripts", "tests/*.ts", "vitest.config.ts"]
+  "include": ["shared", "scripts", "tests/*.ts", "vitest.config.ts"],
+  "exclude": ["tests/a11y.test.ts"]
 }

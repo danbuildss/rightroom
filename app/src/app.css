@@ -3380,3 +3380,19 @@ button.hstat {
   background: var(--warm-2);
   border-color: #d2cfc9;
 }
+.xpoc {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13.5px;
+  color: #3a3834;
+  background: var(--warm-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 7px 10px;
+}
+.xpoc svg {
+  color: var(--blue);
+  flex: none;
+}

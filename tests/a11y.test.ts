@@ -151,6 +151,7 @@ describe("accessibility (axe)", () => {
           domain: "example.com",
           description: "Payments API.",
           logo: null,
+          poc: { name: "Jane Example", role: "Head of Partnerships" },
           links: {
             website: "https://example.com",
             x: "https://x.com/examplepay",

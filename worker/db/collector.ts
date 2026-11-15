@@ -405,6 +405,7 @@ async function collectGrok(
         last_cost_usd: cost,
         last_posts_read: parsed.citations,
         handle: parsed.handle,
+        people: parsed.people,
       },
     },
     etag: null,

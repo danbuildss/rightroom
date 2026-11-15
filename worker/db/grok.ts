@@ -18,6 +18,7 @@ import {
   runSource,
 } from "./collector.ts";
 import { addAlias } from "./companies.ts";
+import { suggestContact } from "./people.ts";
 import { ConflictError, NotFoundError, newId, nowIso } from "./util.ts";
 
 const TERMS =
@@ -222,8 +223,24 @@ export async function researchCompany(
     .first<{ state_json: string }>();
   const state = JSON.parse(row?.state_json || "{}") as {
     handle?: { handle: string; evidence_url: string } | null;
+    people?: { name: string | null; handle: string; role: string; evidence_url: string }[];
     last_cost_usd?: number;
   };
+  let people_added = 0;
+  if (outcome.status === "ok") {
+    for (const p of state.people ?? []) {
+      const name = p.name ? `${p.name} (@${p.handle})` : `@${p.handle}`;
+      if (
+        await suggestContact(
+          db,
+          co.id,
+          { kind: "person", name, role: p.role, source_url: p.evidence_url, confidence: "medium" },
+          "grok",
+        )
+      )
+        people_added += 1;
+    }
+  }
   let handle: { handle: string; evidence_url: string; already_set: boolean } | null = null;
   if (outcome.status === "ok" && state.handle) {
     const existing = await db
@@ -246,6 +263,7 @@ export async function researchCompany(
     source_id: source.id,
     cost_usd: outcome.status === "ok" ? (state.last_cost_usd ?? null) : null,
     handle,
+    people_added,
   };
 }
 

@@ -58,9 +58,12 @@ const COMPANY_INSTRUCTIONS = `You research one company for a curated partnership
 2) List its own recent posts that could create a partnership: a partner or integration program, a request for
    partners or collaborators, a new integration, a new API or SDK, a launch on a new chain or platform,
    an ecosystem or grants program, or a partnerships role.
-Ignore funding news, price talk, giveaways and memes. Never invent posts, links or handles. If unsure, use null.
+3) List up to 3 people who say in their own post that they work at the company in founding, partnerships,
+   business development, developer relations or ecosystem roles. Give one of their own posts as evidence.
+Ignore funding news, price talk, giveaways and memes. Never invent posts, links, names or handles. If unsure, use null.
 Reply with JSON only, no prose:
 {"official_handle":{"handle":"<handle without @>","evidence_post_url":"https://x.com/<handle>/status/<id>"} or null,
+"people":[{"name":"<full name or null>","handle":"<handle>","role":"<role as they state it>","evidence_post_url":"https://x.com/<handle>/status/<id>"}],
 "items":[{"post_url":"https://x.com/<handle>/status/<id>","author_handle":"<handle>","posted_at":"YYYY-MM-DD",
 "post_text":"<exact text, max 400 chars>","company_name":"<name or null>","company_website":"<https URL or null>"}]}`;
 
@@ -110,6 +113,8 @@ export interface GrokParseResult {
   dropped: number;
   /** Company research: the official account, only when a cited post from that same account backs it. */
   handle: { handle: string; evidence_url: string } | null;
+  /** Company research: people whose own cited post backs their role. */
+  people: { name: string | null; handle: string; role: string; evidence_url: string }[];
   citations: number;
   input_tokens: number;
   output_tokens: number;
@@ -154,7 +159,7 @@ export function parseGrokResponse(json: unknown): GrokParseResult {
   const jsonText = answer.match(/\{[\s\S]*\}/)?.[0];
   if (!jsonText) throw new Error("no JSON answer in the reply");
   const parsed = z
-    .object({ items: z.array(z.unknown()), official_handle: z.unknown().optional() })
+    .object({ items: z.array(z.unknown()), official_handle: z.unknown().optional(), people: z.unknown().optional() })
     .parse(JSON.parse(jsonText));
 
   // Every X post link anywhere in the reply outside the answer text counts as a citation.
@@ -203,10 +208,29 @@ export function parseGrokResponse(json: unknown): GrokParseResult {
       handle = { handle: h, evidence_url: ev };
     }
   }
+  const people: GrokParseResult["people"] = [];
+  for (const raw of Array.isArray(parsed.people) ? parsed.people.slice(0, 3) : []) {
+    const p = z
+      .object({
+        name: z.string().nullable().optional(),
+        handle: z.string(),
+        role: z.string(),
+        evidence_post_url: z.string(),
+      })
+      .safeParse(raw);
+    if (!p.success) continue;
+    const h = p.data.handle.replace(/^@/, "").toLowerCase();
+    const ev = canonicalPostUrl(p.data.evidence_post_url);
+    const role = p.data.role.trim().slice(0, 120);
+    if (!/^[a-z0-9_]{1,15}$/.test(h) || !ev || !cited.has(ev) || ev.split("/")[3] !== h || role.length < 2) continue;
+    const name = p.data.name?.trim().slice(0, 120) || null;
+    people.push({ name, handle: h, role, evidence_url: ev });
+  }
   return {
     items,
     dropped,
     handle,
+    people,
     citations: cited.size,
     input_tokens: body.usage?.input_tokens ?? 0,
     output_tokens: body.usage?.output_tokens ?? 0,

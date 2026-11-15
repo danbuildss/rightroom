@@ -8,6 +8,7 @@ const SECTIONS = [
   ["overview", "Overview"],
   ["review", "Review"],
   ["candidates", "New companies"],
+  ["contacts", "Contacts"],
   ["inbox", "Inbox"],
   ["requests", "Requests"],
   ["sources", "Sources"],
@@ -1191,6 +1192,82 @@ views.candidates = async (view) => {
         if (!window.confirm(`Reject ${picked.size} teams? They won't be proposed again.`)) return;
         const { rejected } = await api("POST", "/candidates/reject", { ids: [...picked] });
         toast(`${rejected} rejected.`);
+        picked.clear();
+        await render();
+      }
+    } catch (err) {
+      if (err.status !== 401) toast(err.message, { bad: true });
+      await render();
+    }
+  };
+};
+
+// ---------- Contacts: points of contact found automatically, approved in batches ----------
+const FROM = { "website-reader": "their website", grok: "Grok (their own X post)" };
+views.contacts = async (view) => {
+  let list = [];
+  const picked = new Set();
+  const render = async () => {
+    ({ contacts: list } = await api("GET", "/contacts/pending"));
+    for (const id of [...picked]) if (!list.some((c) => c.id === id)) picked.delete(id);
+    view.innerHTML = `${header("Contacts", `${list.length} waiting · named people and official channels found on each company's own team, about and partner pages, and by Grok. Founders see a contact only after you approve it. Never a guessed email.`)}
+      <div class="toolbar">
+        <button class="btn sm" type="button" data-findc>Find contacts now (5 companies)</button>
+        <div class="row-actions">
+          <label class="check"><input type="checkbox" data-allc ${list.length && list.every((c) => picked.has(c.id)) ? "checked" : ""}> Select all (${list.length})</label>
+          <button class="btn sm blue" type="button" data-okc ${picked.size ? "" : "disabled"}>✓ Approve ${picked.size || ""}</button>
+          <button class="btn sm danger" type="button" data-noc ${picked.size ? "" : "disabled"}>Reject ${picked.size || ""}</button>
+        </div>
+      </div>
+      <p class="help">Open the source page for anyone you're unsure about: the person must be shown there in that role. Grok contacts come from the person's own post on X.</p>
+      ${list.length ? "" : `<div class="empty"><b>Nothing waiting</b>Companies' pages are read a few each hour. Press "Find contacts now" to look straight away.</div>`}
+      ${
+        list.length
+          ? `<div class="panel"><table><tr><th><span class="sr">Select</span></th><th>Company</th><th>Contact</th><th class="hide-m">Found on</th></tr>
+        ${list
+          .map(
+            (k) => `<tr data-cid="${esc(k.id)}" class="${picked.has(k.id) ? "on" : ""}">
+            <td><input type="checkbox" data-pickc ${picked.has(k.id) ? "checked" : ""} aria-label="Select ${esc(k.kind === "person" ? k.name : k.channel_label)} at ${esc(k.company)}"></td>
+            <td><b>${esc(k.company)}</b><br><span class="meta">${esc(k.domain)}</span></td>
+            <td>${k.kind === "person" ? `<b>${esc(k.name)}</b><br><span class="meta">${esc(k.role)}</span>` : `<b>${esc(k.channel_label)}</b><br>${link(k.url)}`}</td>
+            <td class="hide-m">${link(k.source_url, "source page")}<br><span class="meta">${esc(FROM[k.created_by] ?? "added by hand")} · ${esc(k.confidence)}</span></td>
+          </tr>`,
+          )
+          .join("")}</table></div>`
+          : ""
+      }`;
+  };
+  await render();
+
+  view.onchange = (e) => {
+    const t = e.target;
+    if (t.matches("[data-pickc]")) {
+      const id = t.closest("[data-cid]").dataset.cid;
+      t.checked ? picked.add(id) : picked.delete(id);
+      render();
+    } else if (t.matches("[data-allc]")) {
+      for (const c of list) t.checked ? picked.add(c.id) : picked.delete(c.id);
+      render();
+    }
+  };
+  view.onclick = async (e) => {
+    const t = e.target;
+    try {
+      if (t.closest("[data-findc]")) {
+        t.closest("[data-findc]").disabled = true;
+        const { results } = await api("POST", "/contacts/find-missing");
+        const n = results.reduce((sum, r) => sum + r.added, 0);
+        toast(results.length ? `${results.length} companies read, ${n} contacts found.` : "Every company was looked at this month.");
+        await render();
+      } else if (t.closest("[data-okc]") || t.closest("[data-noc]")) {
+        const approve = Boolean(t.closest("[data-okc]"));
+        let reason;
+        if (!approve) {
+          reason = window.prompt("Why reject these? (e.g. not on the page, left the company)", "Not right");
+          if (!reason) return;
+        }
+        const { done } = await api("POST", "/contacts/review-batch", { ids: [...picked], action: approve ? "verify" : "reject", reason });
+        toast(approve ? `${done} contacts approved. Founders can see them now.` : `${done} rejected.`);
         picked.clear();
         await render();
       }

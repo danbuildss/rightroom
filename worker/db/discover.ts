@@ -127,13 +127,14 @@ export async function load(db: D1Database, workspaceId: string, input: DiscoverI
 
     const { results: contactRows } = await db
       .prepare(
-        `SELECT k.company_id, k.kind, k.role, k.confidence FROM company_contacts k JOIN companies co ON co.id = k.company_id
+        `SELECT k.company_id, k.kind, k.name, k.role, k.confidence FROM company_contacts k JOIN companies co ON co.id = k.company_id
          WHERE k.status = 'verified' AND co.status = 'verified' AND co.is_sample = 0 ${filter}`,
       )
       .bind(...bind)
       .all<{
         company_id: string;
         kind: "person" | "channel";
+        name: string | null;
         role: string | null;
         confidence: "high" | "medium" | "low";
       }>();
@@ -182,6 +183,14 @@ export async function load(db: D1Database, workspaceId: string, input: DiscoverI
           docs: null,
         },
         logo: logoUrl(co.slug, logos.get(co.id)),
+        // The approved person to contact first: highest confidence.
+        poc: (() => {
+          const order = { high: 0, medium: 1, low: 2 } as const;
+          const p = mine
+            .filter((k) => k.kind === "person" && k.name)
+            .sort((a, b) => order[a.confidence] - order[b.confidence])[0];
+          return p ? { name: p.name as string, role: p.role ?? "" } : null;
+        })(),
       });
     }
   }

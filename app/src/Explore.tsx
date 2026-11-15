@@ -1,3 +1,4 @@
+import { UserRound } from "lucide-react";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { type ExploreCard, type ExploreParams, type ExploreResponse, explore, type OrgType, pipeline } from "./api.ts";
 import { CompanyLinks, CompanyMark } from "./CompanyBits.tsx";
@@ -448,6 +449,14 @@ export function XCard({ c, onOpen }: { c: ExploreCard; onOpen: () => void }) {
       </div>
       {c.description ? <p className="xdesc">{c.description}</p> : null}
       <CompanyLinks links={c.links} name={c.name} compact />
+      {c.poc ? (
+        <p className="xpoc">
+          <UserRound size={15} strokeWidth={1.75} aria-hidden="true" />
+          <span>
+            Contact: <b>{c.poc.name}</b> · {c.poc.role}
+          </span>
+        </p>
+      ) : null}
       <div className="xtags">
         {sig ? (
           <span className="xtag ver">

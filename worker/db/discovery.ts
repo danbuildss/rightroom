@@ -24,6 +24,7 @@ import { type CollectorEnv, USER_AGENT } from "./collector.ts";
 import { confirmProfiles, createCompany, DuplicateCompanyError } from "./companies.ts";
 import { enrichCompany } from "./enrich.ts";
 import { fetchLogo } from "./logos.ts";
+import { findContacts } from "./people.ts";
 import { reviewCompany } from "./signals.ts";
 import { ConflictError, newId, nowIso } from "./util.ts";
 
@@ -317,6 +318,7 @@ export async function approveCandidates(
     if (r.company_id) {
       await enrichCompany(db, r.company_id, { fetcher: opts.fetcher }).catch(() => undefined);
       await fetchLogo(db, r.company_id, { fetcher: opts.fetcher }).catch(() => undefined);
+      await findContacts(db, r.company_id, { fetcher: opts.fetcher }).catch(() => undefined);
     }
   return results;
 }

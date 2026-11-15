@@ -42,6 +42,7 @@ import { companyEvidence, signalEvidence } from "../db/evidence.ts";
 import { listFounders } from "../db/founders.ts";
 import { fetchLogo, fetchMissingLogos, hideLogo, logoInfo } from "../db/logos.ts";
 import { adminOverview } from "../db/overview.ts";
+import { findContacts, findMissingContacts, pendingContacts } from "../db/people.ts";
 import { DuplicateSignalError, getSignal, listSignals, reviewCompany, reviewSignal } from "../db/signals.ts";
 import { ConflictError, NotFoundError } from "../db/util.ts";
 import type { AppEnv } from "../env.ts";
@@ -294,6 +295,42 @@ export const admin = new Hono<AppEnv>()
     } else return jsonError(c, 400, "invalid_request", "Unknown detail.");
     await blockDetail(db, id, kind);
     return c.json({ ok: true });
+  })
+  // Points of contact waiting for approval, found automatically; approve or reject in batches.
+  .get("/contacts/pending", async (c) => c.json({ contacts: await pendingContacts(c.env.DB) }))
+  .post("/contacts/review-batch", async (c) => {
+    const input = await body(
+      c,
+      z.strictObject({
+        ids: z.array(z.string().min(1).max(64)).min(1).max(200),
+        action: z.enum(["verify", "reject"]),
+        reason: z.string().trim().min(1).max(500).optional(),
+      }),
+    );
+    if (input instanceof Response) return input;
+    let done = 0;
+    for (const id of input.ids) {
+      try {
+        await reviewContact(c.env.DB, id, {
+          action: input.action,
+          reason: input.action === "reject" ? (input.reason ?? "Not right") : undefined,
+        });
+        done += 1;
+      } catch (err) {
+        if (!(err instanceof NotFoundError)) throw err;
+      }
+    }
+    return c.json({ done });
+  })
+  .post("/contacts/find-missing", async (c) =>
+    c.json({ results: await findMissingContacts(c.env.DB, { fetcher: c.get("fetcher"), limit: 5 }) }),
+  )
+  .post("/companies/:id/contacts/find", async (c) => {
+    try {
+      return c.json(await findContacts(c.env.DB, c.req.param("id"), { fetcher: c.get("fetcher") }));
+    } catch (err) {
+      return fail(c, err);
+    }
   })
   // New early-stage teams: find now, list, approve (in batches) or reject.
   .get("/candidates", async (c) => {

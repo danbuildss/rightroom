@@ -145,10 +145,13 @@ describe("company logos", () => {
       github: "https://github.com/logo-co",
       partners: `https://${c.primary_domain}/partners`,
       docs: null,
+      linkedin: null,
+      email: null,
+      contact_form: null,
     });
     expect(card?.logo).toBeNull();
 
-    expect((await admin(web, "DELETE", `/companies/${c.id}/aliases/x_handle`)).status).toBe(200);
+    expect((await admin(web, "DELETE", `/companies/${c.id}/details/x`)).status).toBe(200);
     const again = await call(`/api/app/explore?q=${encodeURIComponent(c.name)}`, { as: null, headers: { cookie } });
     expect(((await again.json()) as { results: { links: { x: string | null } }[] }).results[0]?.links.x).toBeNull();
   });

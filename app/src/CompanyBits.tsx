@@ -1,4 +1,14 @@
-import { AtSign, BookOpen, FolderGit2, Globe, Handshake, type LucideIcon } from "lucide-react";
+import {
+  AtSign,
+  BookOpen,
+  Briefcase,
+  FolderGit2,
+  Globe,
+  Handshake,
+  type LucideIcon,
+  Mail,
+  MessageSquare,
+} from "lucide-react";
 import { useState } from "react";
 
 export interface Links {
@@ -7,6 +17,9 @@ export interface Links {
   github: string | null;
   partners: string | null;
   docs: string | null;
+  linkedin?: string | null;
+  email?: string | null;
+  contact_form?: string | null;
 }
 
 export const initials = (name: string) =>
@@ -64,15 +77,34 @@ export function CompanyLinks({ links, name, compact }: { links: Links; name: str
   if (links.partners)
     items.push({ href: links.partners, label: `${name} partner page`, text: "Partner page", icon: Handshake });
   if (links.docs) items.push({ href: links.docs, label: `${name} docs`, text: "Docs", icon: BookOpen });
+  if (links.linkedin)
+    items.push({ href: links.linkedin, label: `${name} on LinkedIn`, text: "LinkedIn", icon: Briefcase });
+  if (links.email)
+    items.push({
+      href: `mailto:${links.email}`,
+      label: `${name} partnerships email, published on their website`,
+      text: compact ? "Email" : links.email,
+      icon: Mail,
+    });
+  if (links.contact_form)
+    items.push({ href: links.contact_form, label: `${name} contact form`, text: "Contact form", icon: MessageSquare });
   return (
     <ul className="clinks">
       {items.map(({ href, label, text, icon: Icon }) => (
         <li key={href}>
-          <a href={href} target="_blank" rel="noopener noreferrer">
-            <Icon size={14} strokeWidth={1.75} aria-hidden="true" />
-            {text}
-            <span className="sr">: {label}, opens in a new tab</span>
-          </a>
+          {href.startsWith("mailto:") ? (
+            <a href={href}>
+              <Icon size={14} strokeWidth={1.75} aria-hidden="true" />
+              {text}
+              <span className="sr">: {label}, opens your email app</span>
+            </a>
+          ) : (
+            <a href={href} target="_blank" rel="noopener noreferrer">
+              <Icon size={14} strokeWidth={1.75} aria-hidden="true" />
+              {text}
+              <span className="sr">: {label}, opens in a new tab</span>
+            </a>
+          )}
         </li>
       ))}
     </ul>

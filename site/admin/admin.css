@@ -196,3 +196,10 @@ a.btn{text-decoration:none}
 @media (max-width:820px){.panel .stats{grid-template-columns:1fr 1fr}}
 .spend-n span{letter-spacing:0}
 .panel td .meta{white-space:normal}
+.webdet{border-top:1px dashed var(--line);margin-top:12px;padding-top:12px}
+.webdet .ph{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.detlist{list-style:none;margin:0 0 10px;padding:0;display:grid;gap:6px}
+.detlist li{display:grid;grid-template-columns:140px minmax(0,1fr) auto;gap:10px;align-items:center;font-size:14px}
+.detlist .k{color:var(--muted);font-size:13px}
+.detlist a{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:820px){.detlist li{grid-template-columns:1fr auto}.detlist .k{grid-column:1/-1}}

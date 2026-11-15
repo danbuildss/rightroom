@@ -29,6 +29,14 @@ import {
 } from "../db/companies.ts";
 import { addContact, listContacts, reviewContact } from "../db/contacts.ts";
 import { ImportRejectedError, importRegistryFile, reviewQueue, updateCompany, updateSignal } from "../db/curation.ts";
+import {
+  blockDetail,
+  type DetailKind,
+  enrichCompany,
+  enrichMissing,
+  enrichmentInfo,
+  unblockDetail,
+} from "../db/enrich.ts";
 import { companyEvidence, signalEvidence } from "../db/evidence.ts";
 import { listFounders } from "../db/founders.ts";
 import { fetchLogo, fetchMissingLogos, hideLogo, logoInfo } from "../db/logos.ts";
@@ -86,7 +94,7 @@ const logoFetchSchema = z.strictObject({
     .optional(),
 });
 const linkSchema = z.strictObject({
-  kind: z.enum(["x", "github", "partners", "docs"]),
+  kind: z.enum(["x", "github", "partners", "docs", "linkedin", "email"]),
   value: z.string().trim().min(1).max(500),
 });
 const confirmProfilesSchema = z.strictObject({ ids: z.array(z.string().min(1).max(64)).min(1).max(200) });
@@ -219,8 +227,28 @@ export const admin = new Hono<AppEnv>()
     if (input instanceof Response) return input;
     try {
       const id = c.req.param("id");
+      await unblockDetail(c.env.DB, id, input.kind);
       if (input.kind === "x" || input.kind === "github") {
         await addAlias(c.env.DB, id, input.kind === "x" ? "x_handle" : "github_org", input.value);
+      } else if (input.kind === "linkedin" || input.kind === "email") {
+        const v = input.value.trim();
+        const ok =
+          input.kind === "linkedin"
+            ? /^https:\/\/(www\.)?linkedin\.com\/company\/[A-Za-z0-9_-]+\/?$/.test(v)
+            : /^[^\s@<>"]+@[^\s@<>"]+\.[a-z]{2,}$/i.test(v);
+        if (!ok)
+          return jsonError(
+            c,
+            400,
+            "invalid_request",
+            input.kind === "linkedin" ? "Use a linkedin.com/company/… link." : "That isn't an email address.",
+          );
+        await c.env.DB.prepare(
+          `INSERT INTO company_web_links (company_id, kind, value, origin, found_at) VALUES (?, ?, ?, 'dan', ?)
+           ON CONFLICT (company_id, kind) DO UPDATE SET value = excluded.value, origin = 'dan', found_at = excluded.found_at`,
+        )
+          .bind(id, input.kind, v.replace(/\/$/, ""), new Date().toISOString())
+          .run();
       } else {
         const co = await getCompany(c.env.DB, id);
         if (!co) return jsonError(c, 404, "not_found", "Company not found.");
@@ -244,14 +272,40 @@ export const admin = new Hono<AppEnv>()
       return fail(c, err);
     }
   })
-  .delete("/companies/:id/aliases/:kind", async (c) => {
-    const kind = c.req.param("kind");
-    if (kind !== "x_handle" && kind !== "github_org") return jsonError(c, 400, "invalid_request", "Only X and GitHub.");
-    await c.env.DB.prepare("DELETE FROM company_aliases WHERE company_id = ? AND kind = ?")
-      .bind(c.req.param("id"), kind)
-      .run();
-    return c.json({ company: await getCompany(c.env.DB, c.req.param("id")) });
+  // Remove a detail from a company; the website reader won't fill it in again.
+  .delete("/companies/:id/details/:kind", async (c) => {
+    const kind = c.req.param("kind") as DetailKind;
+    const id = c.req.param("id");
+    const db = c.env.DB;
+    if (kind === "x" || kind === "github") {
+      await db
+        .prepare("DELETE FROM company_aliases WHERE company_id = ? AND kind = ?")
+        .bind(id, kind === "x" ? "x_handle" : "github_org")
+        .run();
+    } else if (kind === "docs" || kind === "partners") {
+      // Keep the page on record (it may be evidence for a signal); just stop showing it as this company's link.
+      await db
+        .prepare("UPDATE sources SET company_id = NULL WHERE company_id = ? AND kind = ?")
+        .bind(id, kind === "docs" ? "docs" : "partner_page")
+        .run();
+    } else if (kind === "linkedin" || kind === "email" || kind === "contact_form") {
+      await db.prepare("DELETE FROM company_web_links WHERE company_id = ? AND kind = ?").bind(id, kind).run();
+    } else return jsonError(c, 400, "invalid_request", "Unknown detail.");
+    await blockDetail(db, id, kind);
+    return c.json({ ok: true });
   })
+  // Website details: what was read last, read one company again, or read the next 10.
+  .get("/companies/:id/website", async (c) => c.json(await enrichmentInfo(c.env.DB, c.req.param("id"))))
+  .post("/companies/:id/website", async (c) => {
+    try {
+      return c.json(await enrichCompany(c.env.DB, c.req.param("id"), { fetcher: c.get("fetcher") }));
+    } catch (err) {
+      return fail(c, err);
+    }
+  })
+  .post("/website/fill-missing", async (c) =>
+    c.json({ results: await enrichMissing(c.env.DB, { fetcher: c.get("fetcher"), limit: 10 }) }),
+  )
   .get("/companies", async (c) => {
     const q = companyQuery.safeParse(c.req.query());
     if (!q.success) return jsonError(c, 400, "invalid_request", "Invalid filters.");

@@ -2,6 +2,13 @@
 
 Short records of technical decisions, newest first. Product decisions live in `PLAN.md`.
 
+## 2026-11-15: Marketing site and Request access
+- **The site is static files in `site/`, served by the same Worker** with Workers Static Assets (free). `/api/*` always runs the Worker first; any other unknown path gets `site/404.html`.
+- **No third-party requests:** Geist fonts are self-hosted (OFL licence in `site/fonts/OFL.txt`), no analytics, no CDN scripts. A strict Content Security Policy in `site/_headers` allows only the site's own files, so the HTML has no inline scripts or style attributes (a test checks this).
+- **Request access is real:** `POST /api/public/access-requests` (no login) stores name, email, website and goal in `access_requests` (migration 0006). Same email again updates a still-new request and gets the same answer, so the form never reveals who applied. A hidden honeypot field drops bots silently; a site-wide limit of 30 an hour and a 16 KB body cap blunt spam. Works without JavaScript (redirects to `/thanks.html`).
+- **Dan reviews requests** with `GET /api/admin/access-requests` and records a decision with `PATCH /api/admin/access-requests/:id` (`new` / `invited` / `declined`). Nothing is emailed automatically. The table is admin-only and listed as shared in the isolation test (it exists before any workspace).
+- **Sign in** points to Request access until Google sign-in is built (step 3); its tooltip and the form note say sign-in opens for invited founders.
+
 ## 2026-11-14: Public Discover API and evidence helpers
 - **Public API (`/api/public/…`) is read-only and needs no login**, registered before the admin check. It returns only verified companies and verified signals of verified companies; stale signals appear with status `stale`. Sample records and internal fields (reviewers, rejection reasons, internal ids) are never returned. Responses may be cached for 60 seconds; everything else stays `no-store`.
 - **Evidence helpers for reviewers** (`POST /api/admin/{companies,signals}/:id/evidence`): the Worker reads the source page and suggests the sentences that best match the claim (shared keyword overlap, `shared/evidence.ts`), or checks a company homepage loads and names the company. Suggestions only; approving is still a person's decision. Page reads are capped (10 s, 2 MB), http(s) only, and failures are reported plainly instead of erroring.

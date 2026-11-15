@@ -26,6 +26,15 @@ Cloudflare Access (Zero Trust) can replace or sit alongside the admin key later;
 
 If no sign-in is configured, the API answers "Sign-in is not configured yet" (503) and returns no data. It fails closed.
 
+## The marketing site and access requests
+
+- `https://rightroom.<your-subdomain>.workers.dev/` shows the marketing site (files in `site/`, deployed with the Worker).
+- Founders who fill in **Request access** are stored privately. See them (newest first):
+  `curl -H "Authorization: Bearer $TALO_ADMIN_TOKEN" "$TALO_URL/api/admin/access-requests?status=new"`
+- Record your decision after you've contacted someone yourself (`invited` or `declined`, optional note):
+  `curl -X PATCH -H "Authorization: Bearer $TALO_ADMIN_TOKEN" -H "content-type: application/json" -d '{"status":"invited"}' "$TALO_URL/api/admin/access-requests/<id>"`
+- Rightroom never emails anyone. The back office (next step) will show these in a page.
+
 ## The collector
 
 - The hourly schedule is in `wrangler.jsonc` and starts when the Worker is deployed.

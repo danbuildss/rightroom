@@ -3,6 +3,7 @@ import { bodyLimit } from "hono/body-limit";
 import type { AppEnv } from "./env.ts";
 import { jsonError, securityHeaders } from "./http.ts";
 import { type AuthOptions, requireAdmin } from "./middleware/auth.ts";
+import { accessApi } from "./routes/access.ts";
 import { admin } from "./routes/admin.ts";
 import { collector } from "./routes/collector.ts";
 import { publicApi } from "./routes/public.ts";
@@ -24,6 +25,9 @@ export function createApp(options: AppOptions = {}) {
 
   // Public: tells you the Worker is up. Returns no data.
   app.get("/api/health", (c) => c.json({ ok: true }));
+
+  // Public: the marketing site's Request access form.
+  app.route("/api/public/access-requests", accessApi);
 
   // Public Discover API: read-only, verified records only, no login.
   app.route("/api/public", publicApi);

@@ -1,120 +1,115 @@
-# talo. — brand guide
+# rightroom — brand guide
 
-How Talo looks and sounds. Every page, screen, post and graphic follows this. Approved by Dan, November 2026.
+How Rightroom looks and sounds. Every page, screen, post and graphic follows this. Based on Dan's brand board, approved November 2026. The live reference is the marketing site in `site/`.
 
-"Talo" is a working name until the trademark and domain checks are done (see `PLAN.md`). Don't claim any domain or handle is ours.
+Rightroom replaced the working name Talo. Trademark and domain checks are still to do, so don't claim any domain or handle is ours.
 
 ---
 
-## 1. Name and wordmark
+## 1. Name and logo
 
 | Use | Write it as |
 |---|---|
-| Logo / wordmark | **talo.** (lowercase, full stop always included) |
-| Running text | Talo (capital T, no full stop) |
-| Descriptor | Partnership Intelligence |
+| Logo wordmark | **rightroom** (all lowercase), next to the doorway symbol |
+| Running text | Rightroom (capital R) |
+| Descriptor | Partnership intelligence for founders |
+| Tagline | Get in the right room. |
 | Credit line | built by Somehow Internet |
 
-- Wordmark: Geist Bold, letter-spacing about −0.05em, ink on paper or paper on ink. The full stop is the same colour as the letters.
-- Lockup: **talo.** with "Partnership Intelligence | built by Somehow Internet" underneath, smaller. The credit line is always smaller than the wordmark and set in muted grey.
-- Clear space: at least the height of the "t" on every side.
-- Smallest size: 18px on screen.
-- App icon / favicon: **t.** in paper on an ink rounded square.
-- Never: "Talo." with a capital in the logo, the wordmark without the full stop, outlines, shadows, gradients, or recolouring the wordmark.
-- Public copy names Somehow Internet only.
+- **Symbol:** the blue doorway: a door frame in perspective with a small step at its base, Electric Blue `#0057FF`. The source is the `<symbol id="rr">` in `site/index.html`; the favicon is `site/favicon.svg`.
+- **Lockup:** symbol on the left, wordmark on the right, gap about 40% of the symbol's width. Wordmark in Geist ExtraBold, letter-spacing about −0.045em, ink on light backgrounds, white on dark.
+- Symbol height matches the wordmark's cap height plus descender (about 1.2× the font size).
+- Smallest size: wordmark 16px on screen.
+- Never: recolour the symbol (other than all-white on blue or ink), stretch it, add outlines, shadows or gradients to the logo, or capitalise the wordmark.
 
 ## 2. Colour
 
-Mostly black and white. Colour is reserved for status.
-
 | Token | Hex | Use |
 |---|---|---|
-| `ink` | `#0A0A0A` | Text, primary buttons, wordmark |
+| `ink` | `#0B0B0B` | Text, dark buttons, wordmark |
 | `paper` | `#FFFFFF` | Page background |
-| `surface` | `#FAFAFA` | Secondary backgrounds, panels |
-| `border` | `#E5E5E5` | Lines, card borders |
-| `disabled` | `#A3A3A3` | Disabled controls, outlines on dark |
-| `muted` | `#525252` | Secondary text (passes 4.5:1 on white) |
-| `dark-surface` | `#262626` | Raised surfaces in dark mode, strong body text on light |
+| `warm` | `#E9E7E3` | Warm gray: selected states, quiet pills, section tint |
+| `warm-2` | `#F5F4F1` | Lighter warm surface (alternate sections, inner panels) |
+| `line` | `#E2E0DB` | Borders and frame lines |
+| `muted` | `#5B5853` | Secondary text (passes 4.5:1 on white) |
+| `blue` | `#0057FF` | Electric Blue: the main action, the logo, key words in headlines |
+| `blue-ink` | `#0043C7` | Blue hover, blue text on tinted backgrounds |
+| `blue-tint` | `#E8F0FF` | Strong-fit badge background |
 
-**Status colours** (the only colour in the product):
+**Status:**
 
 | Status | Look |
 |---|---|
-| Verified | Ink pill, white text |
-| Inference | Outlined pill, `#A3A3A3` border, muted text |
+| Verified | ✓ in blue, ink text "Verified" |
+| Our suggestion | ◆ and text in `blue-ink`, labelled "Our suggestion" |
+| Strong fit | Blue tint pill with dot |
+| Potential fit | Warm gray pill with dot |
 | Needs verification | Amber: background `#FEF3C7`, text `#92400E` |
-| Follow-up due / action | Blue: background `#DBEAFE`, text `#1E40AF` |
 
-Amber means "check this". Blue means "act on this". Every status has a text label too; never rely on colour alone.
-
-Dark mode swaps ink and paper, uses `#262626` for raised surfaces and `#A3A3A3` for muted text.
+Blue means "act on this" or "strong". Amber means "check this". Every status has a text label; never rely on colour alone.
 
 ## 3. Type
 
-Both free from Google Fonts.
+Geist and Geist Mono (SIL Open Font License), **self-hosted** from `site/fonts/` so no visitor data goes to a font service.
 
 | Role | Font | Size / weight |
 |---|---|---|
-| Display | Geist | Bold, 52px+, tight tracking (−0.04em) |
-| Heading | Geist | Semibold, 24px, −0.02em |
-| Body | Geist | Regular, 16px, line height 1.6 |
-| Data | Geist Mono | Regular, 13–15px: scores, dates, source links, IDs |
-| Labels | Geist Mono | 11–12px, uppercase, +0.08em tracking, muted |
+| Display | Geist | ExtraBold, 40–78px, −0.045em |
+| Section heading | Geist | Bold, 30–46px, −0.035em; second half in gray `#8B877F` |
+| Body | Geist | Regular, 15–19px, line height 1.55 |
+| Eyebrow labels | Geist Mono | 12px, uppercase, +0.12em, blue |
+| Data | Geist Mono | Scores, dates, field labels |
 
 Sentence case for headings and buttons.
 
 ## 4. Layout and components
 
-- Generous whitespace; 8px spacing grid.
-- Cards: white, 1px `border`, 12–16px corner radius, no shadows.
-- Pills: fully rounded, 12–13px medium text.
-- Buttons: 44px tall minimum. Primary = ink fill with white text; secondary = white with 1px border.
-- Minimal animation: short fades only.
-- Every screen works at phone width.
-- Sample or demo data always carries a visible "SAMPLE DATA · fictional" label.
+- One idea per section; generous whitespace. Content width 1180px; 32px gutters on desktop, 18px on phones.
+- Hero: thin frame lines and a faint dotted grid, fading out behind the headline.
+- Product previews sit in a soft rounded frame (pale blue to warm gray) holding a white app window.
+- Cards: white, 1px `line`, 12–18px radius. Hover lifts 2px with a soft shadow.
+- Buttons: 44px tall minimum, 10px radius. Primary = Electric Blue; secondary = white with a 1px border; dark = ink.
+- Pills: fully rounded, 12–13px medium.
+- Focus is always visible (2px blue outline).
+- Motion: one short fade-in on the hero; hover lifts; nothing on scroll. Respect reduced motion.
+- Every screen works at phone width with no sideways scrolling.
+- Example or demo data always carries a visible label ("Illustration with example companies").
 
 ## 5. Voice
 
-Talo sounds like the sharpest person on your partnerships team: specific, calm, shows its working, and tells you when a match is weak.
+Clear, strategic, modern, confident, useful. Rightroom sounds like the sharpest person on your partnerships team: specific, calm, shows its working, and tells you when a match is weak.
 
 | Principle | Meaning |
 |---|---|
 | Specific | Name the product, the audience and the reason. No "synergies". |
-| Shows its sources | Every claim can be clicked and checked. Guesses are labelled as guesses. |
-| Both sides | Always say what the partner gains, not only what the client gains. |
+| Shows its sources | Every claim can be clicked and checked. Suggestions are labelled as ours. |
+| Both sides | Always say what the partner gains, not only what the founder gains. |
 | Calm, not hype | No exclamation marks, no "10x", no promises of replies or deals. |
 
 **We say**
-- "Strong fit on audience; weaker on readiness. They have no public partner programme yet."
+- "Strong fit on audience; weaker on readiness. They have no public partner program yet."
 - "Needs verification: we couldn't find a public source for this."
-- "Your docs and their SDK both target agent builders. A joint guide is the lowest-effort first step."
-- "Find your partners."
+- "Not fifty names. A handful of companies worth approaching."
 
 **We don't say**
 - "AI-powered synergy engine unlocking 10x growth!"
 - "Guaranteed warm intros."
-- "Hey! Loved your recent post!" (when we didn't read it)
 - "Partnered with [company]" (unless they agreed)
 
 Every fit score is shown with: "A score shows research-based fit. It is not a promise of a reply or a partnership."
 
-Spelling: plain international English.
-
 ## 6. Imagery
 
-- No robot imagery, no stock handshakes, no glowing AI brains, no gradients.
-- Prefer real product screens, simple diagrams and typography.
-- Never use another company's logo in a way that implies endorsement.
+- Real product screens and typography. No robots, stock handshakes, glowing brains.
+- Never use another company's logo in a way that implies endorsement; no "trusted by" strips.
 
-## 7. Taglines
+## 7. Lines
 
-- Product promise (Discover, v1.1): *Find companies worth building with.*
-- Positioning: *The intelligence behind better partnerships.*
-- Tagline: *Better partnerships start here.*
-- Primary call to action: *Find your partners* (opens a pilot request until automated research really exists).
-- Secondary: *See how Talo works*
+- Headline: *Your next big opportunity starts with the right connection.*
+- Tagline: *Get in the right room.*
+- Descriptor: *Partnership intelligence for founders.*
+- Primary call to action: *Request access* (invite-only pilot). Secondary: *See how it works*.
 
 ## 8. Not ours to copy
 
-We study GTMQuant, Crossbeam, Introw and Clay for workflow ideas only. Never copy their artwork, interface, typography or copy.
+We study Frontrun, Clay, Crossbeam and similar tools for workflow ideas only. Never copy their artwork, interface, typography or copy.

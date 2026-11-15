@@ -7,12 +7,13 @@ export type ErrorCode =
   | "not_found"
   | "invalid_request"
   | "conflict"
+  | "rate_limited"
   | "internal";
 
 /** Every error response has the same shape: { error: { code, message, details? } }. */
 export function jsonError(
   c: Context,
-  status: 400 | 401 | 403 | 404 | 409 | 413 | 500 | 503,
+  status: 400 | 401 | 403 | 404 | 409 | 413 | 429 | 500 | 503,
   code: ErrorCode,
   message: string,
   details?: unknown,
@@ -20,7 +21,7 @@ export function jsonError(
   return c.json({ error: { code, message, ...(details === undefined ? {} : { details }) } }, status);
 }
 
-/** Security headers on every response. The API serves JSON only for now. */
+/** Security headers on every API response (the site's own headers are in site/_headers). */
 export const securityHeaders: MiddlewareHandler = async (c, next) => {
   await next();
   const h = c.res.headers;

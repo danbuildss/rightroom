@@ -7,6 +7,7 @@ const KEY_NAME = "rr_admin_key";
 const SECTIONS = [
   ["overview", "Overview"],
   ["review", "Review"],
+  ["candidates", "New companies"],
   ["inbox", "Inbox"],
   ["requests", "Requests"],
   ["sources", "Sources"],
@@ -1102,6 +1103,104 @@ views.founders = async (view) => {
 };
 
 // ---------- Spend ----------
+// ---------- New companies: early-stage teams found automatically ----------
+const VIA = { hn: "Show HN", github: "GitHub", inbox: "Inbox" };
+const TYPE_NAME = Object.fromEntries(ORG_TYPES);
+views.candidates = async (view) => {
+  let list = [];
+  const picked = new Set();
+  const render = async () => {
+    ({ candidates: list } = await api("GET", "/candidates"));
+    for (const id of [...picked]) if (!list.some((c) => c.id === id)) picked.delete(id);
+    const ready = list.filter((c) => c.site_checked_at);
+    view.innerHTML = `${header("New companies", `${list.length} early-stage teams waiting · found every day on Show HN, new GitHub repos and in your Inbox. Approving one makes it a verified company (checked against its own website) with an "Early stage" profile; its links and logo fill in automatically.`)}
+      <div class="toolbar">
+        <div class="row-actions"><button class="btn sm" type="button" data-find>Find new teams now</button><button class="btn sm" type="button" data-read>Read their websites (10)</button></div>
+        <div class="row-actions">
+          <label class="check"><input type="checkbox" data-all ${ready.length && ready.every((c) => picked.has(c.id)) ? "checked" : ""}> Select all ready (${ready.length})</label>
+          <button class="btn sm blue" type="button" data-approve ${picked.size ? "" : "disabled"}>✓ Approve ${picked.size || ""}</button>
+          <button class="btn sm danger" type="button" data-reject ${picked.size ? "" : "disabled"}>Reject ${picked.size || ""}</button>
+        </div>
+      </div>
+      <p class="help">Check each name and description against the website before approving. Rejected teams are never proposed again. At most 25 approvals at a time.</p>
+      ${list.length ? "" : `<div class="empty"><b>Nothing waiting</b>New teams are looked for once a day. Press "Find new teams now" to look straight away.</div>`}
+      ${list
+        .map((c) => {
+          const links = Object.entries(c.site_links || {});
+          return `<article class="item cand${picked.has(c.id) ? " on" : ""}" data-id="${esc(c.id)}">
+          <div class="ih"><label class="pick"><input type="checkbox" data-pick ${picked.has(c.id) ? "checked" : ""} ${c.site_checked_at ? "" : "disabled"} aria-label="Select ${esc(c.site_name || c.name || c.domain)}"></label>
+            <div class="grow">
+              <input class="cname" data-name maxlength="200" value="${esc(c.site_name || c.name || c.domain)}" aria-label="Company name for ${esc(c.domain)}">
+              <div class="meta">${link(`https://${c.domain}`, c.domain)} · found on ${link(c.found_url, VIA[c.found_via] ?? c.found_via)}${c.found_at ? ` · ${day(c.found_at)}` : ""}</div>
+            </div>
+            <span class="pill blue">${esc(TYPE_NAME[c.suggested_type] ?? "Startup")}</span>
+          </div>
+          <div class="ib">
+            ${c.site_checked_at ? (c.site_description ? `<p>${esc(c.site_description)}</p>` : `<p class="meta">No description on their homepage${c.site_note ? `: ${esc(c.site_note)}` : "."}</p>`) : `<p class="meta">Website not read yet.</p>`}
+            <p class="meta">Found as: “${esc(c.found_title)}”</p>
+            ${links.length ? `<p class="meta">From their site: ${links.map(([k, v]) => (k === "email" ? esc(v) : link(v, k))).join(" · ")}</p>` : ""}
+            ${c.suggested_categories.length ? `<p class="meta">Sectors: ${c.suggested_categories.map(esc).join(", ")}</p>` : ""}
+          </div>
+        </article>`;
+        })
+        .join("")}`;
+  };
+  await render();
+
+  view.onchange = (e) => {
+    const t = e.target;
+    if (t.matches("[data-pick]")) {
+      const id = t.closest(".item").dataset.id;
+      t.checked ? picked.add(id) : picked.delete(id);
+      render();
+    } else if (t.matches("[data-all]")) {
+      for (const c of list) if (c.site_checked_at) t.checked ? picked.add(c.id) : picked.delete(c.id);
+      render();
+    }
+  };
+  view.onclick = async (e) => {
+    const t = e.target;
+    try {
+      if (t.closest("[data-find]")) {
+        t.closest("[data-find]").disabled = true;
+        const r = await api("POST", "/candidates/find");
+        const added = r.sources.reduce((n, x) => n + x.added, 0);
+        const errs = r.sources.filter((x) => x.error).map((x) => `${VIA[x.source] ?? x.source}: ${x.error}`);
+        toast(`${added} new teams found${errs.length ? ` (${errs.join("; ")})` : ""}.`, { bad: errs.length > 0 });
+        await render();
+      } else if (t.closest("[data-read]")) {
+        const r = await api("POST", "/candidates/read-sites");
+        toast(`${r.read} websites read.`);
+        await render();
+      } else if (t.closest("[data-approve]")) {
+        const ids = [...picked].slice(0, 25);
+        const names = {};
+        for (const id of ids) {
+          const v = view.querySelector(`.item[data-id="${CSS.escape(id)}"] [data-name]`)?.value.trim();
+          if (v) names[id] = v;
+        }
+        if (!window.confirm(`Approve ${ids.length} companies? They become verified and founders can see them.`)) return;
+        const { results } = await api("POST", "/candidates/approve", { ids, names });
+        const ok = results.filter((r) => r.ok).length;
+        const bad = results.filter((r) => !r.ok);
+        toast(`${ok} companies added${bad.length ? `; ${bad.length} skipped (${[...new Set(bad.map((b) => b.error))].join(", ")})` : ""}.`, { bad: bad.length > 0 });
+        picked.clear();
+        await render();
+        refreshCounts();
+      } else if (t.closest("[data-reject]")) {
+        if (!window.confirm(`Reject ${picked.size} teams? They won't be proposed again.`)) return;
+        const { rejected } = await api("POST", "/candidates/reject", { ids: [...picked] });
+        toast(`${rejected} rejected.`);
+        picked.clear();
+        await render();
+      }
+    } catch (err) {
+      if (err.status !== 401) toast(err.message, { bad: true });
+      await render();
+    }
+  };
+};
+
 // ---------- Grok research (the 3 USD test) ----------
 const usd = (n, d = 2) => (n === null || n === undefined ? "—" : `$${Number(n).toFixed(d)}`);
 views.grok = async (view) => {

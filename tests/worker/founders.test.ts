@@ -85,6 +85,13 @@ describe("founder sign-in", () => {
       body: JSON.stringify({ identity_token: token }),
     });
     expect(cross.status).toBe(403);
+    // The Vercel copy forwards /api here; its address arrives as x-forwarded-host.
+    const viaVercel = await req("/session", {
+      method: "POST",
+      headers: { origin: "https://rightroom.vercel.app", "x-forwarded-host": "rightroom.vercel.app" },
+      body: JSON.stringify({ identity_token: token }),
+    });
+    expect(viaVercel.status).toBe(200);
     const form = await req("/session", {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },

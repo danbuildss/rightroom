@@ -23,6 +23,8 @@ export interface Env {
   GROK_PRICE_PER_POST_USD?: string;
   GROK_PRICE_INPUT_PER_M_USD?: string;
   GROK_PRICE_OUTPUT_PER_M_USD?: string;
+  /** Extra hosts allowed to send changes to the founder API (comma-separated), e.g. the Vercel address. */
+  APP_ORIGIN_HOSTS?: string;
   /** Privy app ID for founder sign-in (public; set in wrangler.jsonc). */
   PRIVY_APP_ID?: string;
   /** Local development only: act as this admin without Access. Ignored unless ENVIRONMENT is "development" on localhost. */

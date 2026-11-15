@@ -125,3 +125,23 @@ describe("Request access (admin)", () => {
     ).toBe(404);
   });
 });
+
+describe("access request retention", () => {
+  it("deletes decided requests 12 months after the decision, and keeps new ones", async () => {
+    const { purgeOldAccessRequests } = await import("../../worker/db/access.ts");
+    const old = new Date(Date.now() - 400 * 86_400_000).toISOString();
+    const recent = new Date().toISOString();
+    const ins = env.DB.prepare(
+      "INSERT INTO access_requests (id, name, email, goal, status, created_at, updated_at) VALUES (?, 'x', ?, 'a long enough goal', ?, ?, ?)",
+    );
+    await env.DB.batch([
+      ins.bind("ret-old-invited", "ret1@test.example", "invited", old, old),
+      ins.bind("ret-old-declined", "ret2@test.example", "declined", old, old),
+      ins.bind("ret-old-new", "ret3@test.example", "new", old, old),
+      ins.bind("ret-recent", "ret4@test.example", "declined", recent, recent),
+    ]);
+    await purgeOldAccessRequests(env.DB);
+    const { results } = await env.DB.prepare("SELECT id FROM access_requests WHERE id LIKE 'ret-%' ORDER BY id").all();
+    expect(results.map((r) => r.id)).toEqual(["ret-old-new", "ret-recent"]);
+  });
+});

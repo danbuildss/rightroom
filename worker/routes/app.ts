@@ -73,11 +73,31 @@ export interface FounderAppOptions {
   privyKey?: (env: Env) => JWTVerifyGetKey;
 }
 
+/**
+ * The site is also served from Vercel, which forwards /api here; the browser's Origin is then the
+ * Vercel address. Accept the Worker's own host, the host Vercel says it forwarded from, and any
+ * host listed in APP_ORIGIN_HOSTS. JSON-only bodies mean other sites can't post here anyway.
+ */
+function allowedOrigin(origin: string, c: Context<AppEnv>): boolean {
+  let host: string;
+  try {
+    host = new URL(origin).host;
+  } catch {
+    return false;
+  }
+  const allowed = new Set(
+    [new URL(c.req.url).host, c.req.header("x-forwarded-host") ?? "", ...(c.env.APP_ORIGIN_HOSTS ?? "").split(",")]
+      .map((h) => h.trim().toLowerCase())
+      .filter(Boolean),
+  );
+  return allowed.has(host.toLowerCase());
+}
+
 /** Changes are only accepted from pages on this site, sent as JSON (blocks cross-site form posts). */
 const sameSite: MiddlewareHandler<AppEnv> = async (c, next) => {
   if (c.req.method !== "GET") {
     const origin = c.req.header("origin");
-    if (origin && new URL(origin).host !== new URL(c.req.url).host) {
+    if (origin && !allowedOrigin(origin, c)) {
       return jsonError(c, 403, "forbidden", "Requests must come from Rightroom.");
     }
     if (c.req.method !== "DELETE" && !(c.req.header("content-type") ?? "").includes("application/json")) {

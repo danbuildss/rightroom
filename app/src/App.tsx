@@ -275,6 +275,8 @@ function SignIn(props: {
       <p className="fine">
         We only receive your name and email or X handle. We never post for you or read your messages.
         <br />
+        By signing in you agree to our <a href="/terms.html">terms</a> and <a href="/privacy.html">privacy policy</a>.
+        <br />
         Not invited yet? <a href="/#access">Request access</a>
       </p>
     </Screen>

@@ -221,12 +221,13 @@ function FounderHome(props: {
           <Explore onOpen={open} />
         </div>
         <div hidden={tab !== "discover" || Boolean(stage.profile)}>
-          <Discover suggestion={suggestion} onOpen={open} />
+          <Discover suggestion={suggestion} onOpen={open} onExplore={() => go("explore")} />
         </div>
         {BACK[tab] && stage.profile ? (
           <Company
             slug={stage.profile}
             backLabel={BACK[tab]}
+            onOpenPipeline={() => go("pipeline")}
             onBack={() => setStage({ ...stage, profile: undefined })}
           />
         ) : null}

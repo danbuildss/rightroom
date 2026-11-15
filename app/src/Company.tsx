@@ -5,7 +5,12 @@ import { SaveButton } from "./Discover.tsx";
 import { DraftPanel } from "./DraftPanel.tsx";
 import { CountUp, FitMeter } from "./motion.tsx";
 
-const LABELS = { strong: "Strong fit", potential: "Potential fit", needs_verification: "Needs verification" } as const;
+const LABELS = {
+  strong: "Strong fit",
+  potential: "Potential fit",
+  needs_verification: "Needs verification",
+  below: "Open to partners",
+} as const;
 const EVIDENCE = { high: "High", medium: "Medium", low: "Low" } as const;
 const CONF = { high: "High", medium: "Medium", low: "Low" } as const;
 const GOAL_LABELS: Record<string, string> = {
@@ -41,10 +46,12 @@ export function Company({
   slug,
   onBack,
   backLabel = "Discover",
+  onOpenPipeline,
 }: {
   slug: string;
   onBack: () => void;
   backLabel?: string;
+  onOpenPipeline?: () => void;
 }) {
   const [data, setData] = useState<CompanyIntel | null>(null);
   const [error, setError] = useState("");
@@ -58,6 +65,15 @@ export function Company({
       .then(setData)
       .catch((err: unknown) => setError(err instanceof Error ? err.message : "Couldn't load this company."));
     window.scrollTo(0, 0);
+  }, [slug]);
+  // After Save (here or elsewhere), reload so the page shows it's in the pipeline.
+  useEffect(() => {
+    const reload = () =>
+      companyIntel(slug)
+        .then(setData)
+        .catch(() => undefined);
+    window.addEventListener("rr:saved-changed", reload);
+    return () => window.removeEventListener("rr:saved-changed", reload);
   }, [slug]);
 
   const crumb = (
@@ -126,6 +142,11 @@ export function Company({
           <div className="ev">Evidence: {EVIDENCE[c.fit.evidence]} · Rightroom's estimate</div>
           <div className="iacts">
             <SaveButton key={c.saved?.stage ?? "none"} slug={c.slug} saved={c.saved} name={c.name} />
+            {c.saved && onOpenPipeline ? (
+              <button type="button" className="linkbtn" onClick={onOpenPipeline}>
+                Open in Pipeline →
+              </button>
+            ) : null}
           </div>
         </div>
       </header>
@@ -170,6 +191,19 @@ export function Company({
               {s.for_them}
             </div>
           </div>
+          {s.structures?.length ? (
+            <div className="structs">
+              <div className="lab sug">Possible partnership structures</div>
+              <ul>
+                {s.structures.map((x) => (
+                  <li key={x.name}>
+                    <b>{x.name}</b>
+                    <span>{x.why}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           <p className="src">
             Built from {s.based_on.charAt(0).toLowerCase() + s.based_on.slice(1)} Check it before you rely on it.
           </p>

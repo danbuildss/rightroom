@@ -134,4 +134,22 @@ describe("Discover API", () => {
     for (const r of body.results) expect(r.categories.map((c) => c.slug)).toContain("wallets");
     expect((await get("/discover?goals=parties", cookie)).status).toBe(400);
   });
+
+  it("shows companies openly looking for partners outside the founder's focus, instead of hiding them", async () => {
+    const cookie = await founderCookie();
+    const other = await verifiedCompany("Walrus Games", ["solana"]);
+    await env.DB.prepare("UPDATE companies SET description = 'Mobile games studio.' WHERE id = ?").bind(other.id).run();
+    await verifiedSignal(other.primary_domain);
+    const body = (await (await get("/discover?q=", cookie)).json()) as {
+      results: { slug: string }[];
+      others: { slug: string; name: string }[];
+    };
+    expect(body.results.some((r) => r.slug === other.slug)).toBe(false);
+    expect(body.others.some((r) => r.slug === other.slug)).toBe(true);
+
+    const intel = (await (await get(`/companies/${other.slug}`, cookie)).json()) as {
+      suggestions: { structures: { name: string; why: string }[] };
+    };
+    expect(intel.suggestions.structures.map((x) => x.name)).toContain("Referral or reseller partnership");
+  });
 });

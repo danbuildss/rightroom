@@ -2,6 +2,11 @@
 
 Short records of technical decisions, newest first. Product decisions live in `PLAN.md`.
 
+## 2026-11-15: Discover and company profiles (Explore, step 4)
+- **Discover no longer hides open companies:** "Open to partners, outside your focus" lists up to 8 companies that share no sector or keyword with the founder (so they aren't a fit) but have readiness of 3 or more, such as a fresh partner program or a collaboration request. They're labelled "Open to partners", with no score. A link leads to Explore.
+- **Possible partnership structures** on the company page: up to 3, chosen from verified signals and the confirmed company type and ordered by the founder's goals. Each has its reason (product integration, referral or reseller, joint launch or co-marketing, joining their ecosystem). Labelled as our suggestion.
+- **Save → Pipeline:** once saved, the company page shows "Open in Pipeline →", and it reloads when a save happens anywhere.
+
 ## 2026-11-15: AI helpers through Dan's Bankr LLM gateway
 - **Approved by Dan (about 300 USD of Bankr credit).** Back office only, and only public website text is sent: never founders' profiles, drafts, notes or pipeline. The privacy policy says public pages may be processed by AI services and that workspace data isn't.
 - **The gateway:** OpenAI-compatible (`https://llm.bankr.bot/v1/chat/completions`, Bearer `BANKR_LLM_KEY`, a Cloudflare secret). Dan picks the model in Back office → AI helpers from Bankr's `/v1/models` list (`app_settings.ai_model`). It's off without both the key and a model.

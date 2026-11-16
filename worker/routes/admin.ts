@@ -31,6 +31,7 @@ import {
 import { addContact, listContacts, reviewContact } from "../db/contacts.ts";
 import { ImportRejectedError, importRegistryFile, reviewQueue, updateCompany, updateSignal } from "../db/curation.ts";
 import { approveCandidates, discover, listCandidates, readCandidateSites, rejectCandidates } from "../db/discovery.ts";
+import { engineStatus, runTick } from "../db/engine.ts";
 import {
   blockDetail,
   type DetailKind,
@@ -297,6 +298,9 @@ export const admin = new Hono<AppEnv>()
     await blockDetail(db, id, kind);
     return c.json({ ok: true });
   })
+  // The engine: what ran, what it found, what's waiting; and "run one step now".
+  .get("/engine", async (c) => c.json(await engineStatus(c.env.DB)))
+  .post("/engine/run", async (c) => c.json({ done: await runTick(c.env.DB, c.env, { fetcher: c.get("fetcher") }) }))
   // AI helpers (Bankr LLM gateway): status, model list, choose a model, a tiny test, and checks.
   .get("/ai", async (c) => c.json(await aiStatus(c.env.DB, c.env)))
   .get("/ai/models", async (c) => {

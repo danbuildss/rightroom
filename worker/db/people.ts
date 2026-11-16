@@ -23,7 +23,7 @@ async function page(fetcher: typeof fetch, url: string): Promise<{ html: string;
       signal: AbortSignal.timeout(8_000),
     });
     if (!res.ok || !(res.headers.get("content-type") ?? "").includes("html")) return null;
-    return { html: (await res.text()).slice(0, 1_000_000), url: res.url || url };
+    return { html: (await res.text()).slice(0, 300_000), url: res.url || url };
   } catch {
     return null;
   }

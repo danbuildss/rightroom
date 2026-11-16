@@ -6,18 +6,29 @@
 const KEY_NAME = "rr_admin_key";
 const SECTIONS = [
   ["overview", "Overview"],
-  ["review", "Review"],
+  ["engine", "Engine status"],
   ["candidates", "New companies"],
   ["contacts", "Contacts"],
-  ["inbox", "Inbox"],
-  ["requests", "Requests"],
+  ["inbox", "Signals inbox"],
+  ["review", "Review queue"],
+  ["companies", "All companies"],
   ["sources", "Sources"],
-  ["companies", "Companies"],
+  ["requests", "Access requests"],
   ["founders", "Founders"],
-  ["grok", "Grok research"],
+  ["grok", "Grok"],
   ["ai", "AI helpers"],
   ["spend", "Spend"],
 ];
+// The menu: 5 sections, each with tabs (the pages above).
+const SEGMENTS = [
+  ["home", "Home", ["overview", "engine"]],
+  ["toreview", "To review", ["candidates", "contacts", "inbox", "review"]],
+  ["companiesSeg", "Companies", ["companies", "sources"]],
+  ["people", "People", ["requests", "founders"]],
+  ["research", "Research & AI", ["grok", "ai", "spend"]],
+];
+const tabLabel = (id) => SECTIONS.find(([k]) => k === id)?.[1] ?? id;
+const segmentOf = (id) => SEGMENTS.find(([, , tabs]) => tabs.includes(id)) ?? SEGMENTS[0];
 
 // ---------- small helpers ----------
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -124,12 +135,30 @@ let counts = {};
 
 function renderNav() {
   const active = currentSection();
-  const badge = { review: counts.waiting, inbox: counts.inbox_new, requests: counts.access_requests_new };
-  const html = SECTIONS.map(([id, label]) => {
-    const n = badge[id];
-    return `<a href="#${id}"${id === active ? ' class="on" aria-current="page"' : ""}>${label}${n ? ` <span class="count">${n}</span>` : ""}</a>`;
+  const [activeSeg] = segmentOf(active);
+  // What's waiting, per tab, and summed per section.
+  const badge = {
+    candidates: counts.engine?.waiting?.teams,
+    contacts: counts.engine?.waiting?.contacts,
+    inbox: counts.inbox_new,
+    review: counts.waiting,
+    requests: counts.access_requests_new,
+  };
+  const html = SEGMENTS.map(([id, label, tabs]) => {
+    const n = tabs.reduce((sum, t) => sum + (Number(badge[t]) || 0), 0);
+    return `<a href="#${tabs[0]}"${id === activeSeg ? ' class="on" aria-current="page"' : ""}>${label}${n ? ` <span class="count">${n}</span>` : ""}</a>`;
   }).join("");
   for (const nav of document.querySelectorAll("[data-nav]")) nav.innerHTML = html;
+  const tabs = $("#tabs");
+  if (tabs) {
+    const [, , ids] = segmentOf(active);
+    tabs.innerHTML = ids
+      .map((t) => {
+        const n = Number(badge[t]) || 0;
+        return `<a href="#${t}"${t === active ? ' class="on" aria-current="page"' : ""}>${tabLabel(t)}${n ? ` <span class="count">${n}</span>` : ""}</a>`;
+      })
+      .join("");
+  }
 }
 
 function currentSection() {
@@ -139,7 +168,8 @@ function currentSection() {
 
 async function refreshCounts() {
   try {
-    counts = await api("GET", "/overview");
+    const [overview, engine] = await Promise.all([api("GET", "/overview"), api("GET", "/engine").catch(() => null)]);
+    counts = { ...overview, engine };
   } catch {
     /* the page will show its own error */
   }
@@ -195,8 +225,11 @@ async function route() {
   renderNav();
   // A fresh element per page, so listeners from the previous page don't pile up.
   const old = $("#view");
-  const view = old.cloneNode(false);
-  old.replaceWith(view);
+  const main = old.cloneNode(false);
+  old.replaceWith(main);
+  main.innerHTML = `<nav class="subtabs" id="tabs" aria-label="Pages in this section"></nav><div class="viewbody"></div>`;
+  renderNav();
+  const view = $(".viewbody", main);
   view.innerHTML = `<div class="skel w40"></div><div class="skel w80"></div><div class="skel w60"></div>`;
   refreshCounts();
   try {
@@ -205,11 +238,68 @@ async function route() {
     if (err instanceof ApiError && err.status === 401) return;
     view.innerHTML = `<div class="empty"><b>Couldn't load this page</b>${esc(err.message)}</div>`;
   }
-  view.focus({ preventScroll: true });
+  main.focus({ preventScroll: true });
 }
 
 const header = (title, sub, right = "") =>
   `<div class="top"><div><h1>${esc(title)}</h1>${sub ? `<p class="subtle">${sub}</p>` : ""}</div>${right}</div>`;
+
+// ---------- Engine status ----------
+const RUN_STATE = { ok: ["ok", "Did work"], idle: ["grey", "Nothing to do"], failed: ["bad", "Failed"], running: ["blue", "Running"], cut_short: ["warn", "Started, didn't finish"] };
+views.engine = async (view) => {
+  const render = async () => {
+    const e = await api("GET", "/engine");
+    const ago = e.last_run_at ? Math.round((Date.now() - Date.parse(e.last_run_at)) / 60000) : null;
+    const healthy = ago !== null && ago <= 25;
+    view.innerHTML = `${header("Engine status", "Every 10 minutes Rightroom does one small job, taking turns: finding new teams, reading their websites, collecting signals, links, logos, contacts and AI checks. Each run is listed here.")}
+      <div class="notice ${healthy ? "ok" : "warn"}">${
+        ago === null
+          ? "<b>No runs yet.</b> The first one starts within 10 minutes of this update going live. You can also press “Run one step now”."
+          : healthy
+            ? `<b>Running.</b> Last run ${ago <= 1 ? "just now" : `${ago} minutes ago`}.`
+            : `<b>Not running on schedule.</b> Last run was ${ago} minutes ago. Check Cloudflare → Workers → rightroom → Settings → Triggers.`
+      }</div>
+      <div class="stats">
+        <div class="stat"><div class="n">${e.today.teams}</div><div class="l">New teams found today</div></div>
+        <div class="stat"><div class="n">${e.today.inbox_items}</div><div class="l">Signals collected today</div></div>
+        <div class="stat"><div class="n">${e.today.contacts}</div><div class="l">Contacts found today</div></div>
+        <div class="stat"><div class="n">${e.today.logos}</div><div class="l">Logos found today</div></div>
+      </div>
+      <div class="panel"><h2>Waiting for you</h2><div class="pad waitrow">
+        <a href="#candidates"><b>${e.waiting.teams}</b> new companies</a>
+        <a href="#contacts"><b>${e.waiting.contacts}</b> contacts</a>
+        <a href="#inbox"><b>${e.waiting.inbox}</b> signals in the Inbox</a>
+        <a href="#review"><b>${e.waiting.review}</b> in the review queue</a>
+      </div></div>
+      <div class="panel"><h2>Recent runs <span><button class="btn sm" type="button" data-tick>Run one step now</button></span></h2>
+        ${
+          e.runs.length
+            ? `<table><tr><th>When</th><th>Job</th><th>Result</th></tr>${e.runs
+                .map(
+                  (r) => `<tr><td>${day(r.started_at)} ${new Date(r.started_at).toISOString().slice(11, 16)} UTC</td><td>${esc(r.label)}</td>
+                  <td><span class="pill ${RUN_STATE[r.status]?.[0] ?? "grey"}">${RUN_STATE[r.status]?.[1] ?? esc(r.status)}</span> ${esc(r.summary ?? "")}${r.error ? `<br><span class="warn-t">${esc(r.error)}</span>` : ""}</td></tr>`,
+                )
+                .join("")}</table>`
+            : `<div class="pad meta">No runs yet.</div>`
+        }
+      </div>`;
+  };
+  await render();
+  view.onclick = async (ev) => {
+    if (!ev.target.closest("[data-tick]")) return;
+    const b = ev.target.closest("[data-tick]");
+    b.disabled = true;
+    b.textContent = "Running…";
+    try {
+      const { done } = await api("POST", "/engine/run");
+      toast(done.map((d) => d.summary || d.task).join(" · "));
+    } catch (err) {
+      if (err.status !== 401) toast(err.message, { bad: true });
+    }
+    await render();
+    refreshCounts();
+  };
+};
 
 // ---------- Overview ----------
 views.overview = async (view) => {

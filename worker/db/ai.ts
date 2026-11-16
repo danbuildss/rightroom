@@ -202,7 +202,7 @@ async function homepage(fetcher: typeof fetch, url: string) {
     signal: AbortSignal.timeout(8_000),
   });
   if (!res.ok) throw new Error(`homepage answered ${res.status}`);
-  return (await res.text()).slice(0, 1_000_000);
+  return (await res.text()).slice(0, 300_000);
 }
 
 /** The AI's read of a new company candidate, stored on it for Dan to see before approving. */

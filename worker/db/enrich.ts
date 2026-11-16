@@ -12,7 +12,7 @@ import { addAlias, addSource, DuplicateCompanyError } from "./companies.ts";
 import { NotFoundError, nowIso } from "./util.ts";
 
 export type DetailKind = keyof SiteFindings;
-const MAX_HTML = 1_000_000;
+const MAX_HTML = 300_000;
 const RECHECK_DAYS = 30;
 
 async function blocked(db: D1Database, companyId: string): Promise<Set<string>> {

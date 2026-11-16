@@ -15,7 +15,7 @@
     "run_worker_first": ["/api/*"]
   },
   // The collector checks a few due sources every hour (free tier includes Cron Triggers).
-  "triggers": { "crons": ["17 * * * *"] },
+  "triggers": { "crons": ["*/10 * * * *"] },
   "d1_databases": [
     {
       "binding": "DB",

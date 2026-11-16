@@ -2,6 +2,22 @@
 
 Short records of technical decisions, newest first. Product decisions live in `PLAN.md`.
 
+## 2026-11-16: The engine runs every 10 minutes, one small job at a time (free plan)
+- **Why:** on 15–16 November nothing new arrived overnight. The single hourly job did everything at once, and on the free plan a run gets very little CPU time, so it was most likely cut off without a trace.
+- **Now:** the Cloudflare cron trigger fires every 10 minutes (`*/10 * * * *`, free). Each run does one small task, taking turns (`worker/db/engine.ts`):
+  - find new teams (Hacker News, GitHub, Inbox), each source about once a day
+  - read 2 new teams' websites
+  - collect signals from 1 due source
+  - AI-check 2 new teams
+  - fill links for 2 companies
+  - find contacts at 1 company
+  - find 2 logos
+  - housekeeping
+
+  A task with nothing to do hands over to the next (at most 3 per run). Pages are read up to 300 KB. Grok still never runs on the schedule.
+- **Every run is recorded** in `job_runs` (migration 0021): the task, a plain-words summary and any error. A run still marked "running" after 15 minutes is shown as "Started, didn't finish", meaning Cloudflare cut it short. Back office → Home → **Engine status** shows today's totals, what's waiting for Dan, the last 60 runs and "Run one step now".
+- **Back office menu:** 5 sections (Home, To review, Companies, People, Research & AI), each with tabs. Each section shows a count of what's waiting.
+
 ## 2026-11-15: Discover and company profiles (Explore, step 4)
 - **Discover no longer hides open companies:** "Open to partners, outside your focus" lists up to 8 companies that share no sector or keyword with the founder (so they aren't a fit) but have readiness of 3 or more, such as a fresh partner program or a collaboration request. They're labelled "Open to partners", with no score. A link leads to Explore.
 - **Possible partnership structures** on the company page: up to 3, chosen from verified signals and the confirmed company type and ordered by the founder's goals. Each has its reason (product integration, referral or reseller, joint launch or co-marketing, joining their ecosystem). Labelled as our suggestion.

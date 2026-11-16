@@ -151,7 +151,16 @@ async function store(db: D1Database, teams: FoundTeam[], at: string, limit: numb
  */
 export async function discover(
   db: D1Database,
-  opts: { env?: CollectorEnv; fetcher?: typeof fetch; now?: Date; force?: boolean } = {},
+  opts: {
+    env?: CollectorEnv;
+    fetcher?: typeof fetch;
+    now?: Date;
+    force?: boolean;
+    /** Only this source (the engine runs one per turn). */
+    only?: "hn" | "github" | "inbox";
+    /** How many new candidates' websites to read afterwards (default 5; 0 to skip). */
+    readSites?: number;
+  } = {},
 ) {
   const now = opts.now ?? new Date();
   const fetcher = opts.fetcher ?? fetch;
@@ -164,6 +173,7 @@ export async function discover(
   ];
   let budget = MAX_NEW_PER_RUN;
   for (const [key, run] of sources) {
+    if (opts.only && key !== opts.only) continue;
     const last = await lastRun(db, key);
     if (!opts.force && last && now.getTime() - Date.parse(last) < 20 * 3_600_000) continue;
     try {
@@ -176,7 +186,7 @@ export async function discover(
     }
     await setRun(db, key, at);
   }
-  const read = await readCandidateSites(db, { fetcher, limit: 5 });
+  const read = opts.readSites === 0 ? 0 : await readCandidateSites(db, { fetcher, limit: opts.readSites ?? 5 });
   return { sources: report, sites_read: read };
 }
 
@@ -201,7 +211,7 @@ export async function readCandidateSites(db: D1Database, opts: { fetcher?: typeo
       });
       if (!res.ok) note = `Homepage answered ${res.status}.`;
       else {
-        const html = (await res.text()).slice(0, 1_000_000);
+        const html = (await res.text()).slice(0, 300_000);
         meta = readSiteMeta(html);
         links = Object.fromEntries(
           Object.entries(readHomepage(html, res.url || `https://${c.domain}/`, c.domain)).filter(([, v]) => v),

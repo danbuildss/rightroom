@@ -15,7 +15,7 @@ import { USER_AGENT } from "./collector.ts";
 import { NotFoundError, nowIso } from "./util.ts";
 
 export const MAX_LOGO_BYTES = 100_000;
-const MAX_HTML_BYTES = 1_000_000;
+const MAX_HTML_BYTES = 300_000;
 const TIMEOUT_MS = 8_000;
 const RECHECK_DAYS = 30;
 

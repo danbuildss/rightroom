@@ -8,12 +8,16 @@ const headers = readFileSync("site/_headers", "utf8");
 
 describe("marketing site", () => {
   it("loads nothing from other sites (fonts are self-hosted)", () => {
-    expect(html).not.toMatch(/(src|href)="https?:\/\//);
+    // The canonical link names our own address; it loads nothing.
+    expect(html.replace(/<link rel="canonical" href="https:\/\/getrightroom\.co\/[^"]*">/, "")).not.toMatch(
+      /(src|href)="https?:\/\//,
+    );
     expect(css).not.toMatch(/url\(["']?https?:/);
   });
 
   it("has no inline scripts, handlers or style attributes, so the strict CSP holds", () => {
-    expect(html).not.toMatch(/<script(?![^>]*\bsrc=)/);
+    // Structured data (application/ld+json) is never run as code, so it's allowed.
+    expect(html).not.toMatch(/<script(?![^>]*\b(src=|type="application\/ld\+json"))/);
     expect(html).not.toMatch(/\son[a-z]+=/i);
     expect(html).not.toMatch(/\sstyle=/);
     expect(headers).toContain("script-src 'self'");
@@ -50,6 +54,20 @@ describe("Vercel copy of the site", () => {
     expect(vercel.rewrites).toEqual([
       { source: "/api/:path*", destination: "https://rightroom.danewurum01.workers.dev/api/:path*" },
     ]);
+  });
+
+  it("splits the domains: marketing on getrightroom.co, the app on app.getrightroom.co (never indexed)", () => {
+    const v = vercel as unknown as {
+      redirects: { source: string; has: { value: string }[]; destination: string }[];
+      headers: { source: string; has?: { value: string }[]; headers: { key: string; value: string }[] }[];
+    };
+    const r = (host: string, source: string) =>
+      v.redirects.find((x) => x.source === source && x.has[0]?.value === host)?.destination;
+    expect(r("getrightroom.co", "/app/:path*")).toBe("https://app.getrightroom.co/app/:path*");
+    expect(r("www.getrightroom.co", "/app/:path*")).toBe("https://app.getrightroom.co/app/:path*");
+    expect(r("app.getrightroom.co", "/")).toBe("/app/");
+    const appHost = v.headers.find((h) => h.has?.[0]?.value === "app.getrightroom.co");
+    expect(appHost?.headers).toContainEqual({ key: "X-Robots-Tag", value: "noindex, nofollow" });
   });
 
   it("uses the same security headers as Cloudflare", () => {
@@ -194,5 +212,21 @@ describe("founder app loading", () => {
     }
     expect(readFileSync("app/src/Auth.tsx", "utf8")).toContain("@privy-io/react-auth");
     expect(readFileSync("app/src/App.tsx", "utf8")).toMatch(/lazy\(\(\) => import\("\.\/Auth\.tsx"\)\)/);
+  });
+});
+
+describe("search engines", () => {
+  it("point at getrightroom.co, with a canonical link on each public page", () => {
+    for (const [file, path] of [
+      ["index", "/"],
+      ["privacy", "/privacy"],
+      ["terms", "/terms"],
+    ]) {
+      const html = readFileSync(`site/${file}.html`, "utf8");
+      expect(html).toContain(`<link rel="canonical" href="https://getrightroom.co${path}">`);
+      expect(html).not.toContain("vercel.app");
+    }
+    expect(readFileSync("site/robots.txt", "utf8")).toContain("Sitemap: https://getrightroom.co/sitemap.xml");
+    expect(readFileSync("site/sitemap.xml", "utf8")).not.toContain("vercel.app");
   });
 });

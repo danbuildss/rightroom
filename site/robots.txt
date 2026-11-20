@@ -4,4 +4,4 @@ Disallow: /app/
 Disallow: /admin/
 Disallow: /api/
 
-Sitemap: https://rightroom-alpha.vercel.app/sitemap.xml
+Sitemap: https://getrightroom.co/sitemap.xml

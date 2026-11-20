@@ -309,21 +309,25 @@ views.cleanup = async (view) => {
     const todoRemove = p.remove.filter((r) => !r.done);
     const todoFix = p.fix.filter((f) => !f.done);
     const todo = todoRemove.length + todoFix.length + p.codes.length;
-    const state = (done) => `<span class="pill ${done ? "ok" : "warn"}">${done ? "Done" : "To do"}</span>`;
+    const state = (x) =>
+      !x.found
+        ? `<span class="pill grey">Not found</span>`
+        : `<span class="pill ${x.done ? "ok" : "warn"}">${x.done ? "Done" : "To do"}</span>`;
+    const missing = [...p.remove, ...p.fix].filter((x) => !x.found).length;
     view.innerHTML = `${header("Clean up", "The cleanup you approved on 20 November: companies that aren't partners are removed (kept on record as rejected, so the engine never adds them again), a few records are corrected, and HTML codes like &amp;#x27; are turned back into normal characters.")}
       <div class="notice ${todo ? "warn" : "ok"}">${
         todo
           ? `<b>${todoRemove.length} to remove, ${todoFix.length} to correct, ${p.codes.length} with HTML codes.</b> <button class="btn sm" type="button" data-apply>Apply cleanup</button>`
           : "<b>All done.</b> Nothing left to clean up."
-      }</div>
+      }${missing ? ` ${missing} on the list aren't in the database (already deleted or never added).` : ""}</div>
       <div class="panel"><h2>Remove (${p.remove.length})</h2><table><tr><th>Company</th><th>Why</th><th></th></tr>${p.remove
-        .map((r) => `<tr><td>${esc(r.name)}<br>${link(`https://${r.domain}`, r.domain)}</td><td>${esc(r.why)}</td><td>${state(r.done)}</td></tr>`)
+        .map((r) => `<tr><td>${esc(r.name)}<br>${link(`https://${r.domain}`, r.domain)}</td><td>${esc(r.why)}</td><td>${state(r)}</td></tr>`)
         .join("")}</table></div>
       <div class="panel"><h2>Correct (${p.fix.length})</h2><table><tr><th>Company</th><th>Change</th><th></th></tr>${p.fix
         .map(
           (f) => `<tr><td>${esc(f.name)}<br>${link(`https://${f.domain}`, f.domain)}</td><td>${esc(f.why)}${f.changes
             .map((ch) => `<br><span class="meta">${esc(ch.field)}: “${esc(ch.from)}” → “${esc(ch.to)}”</span>`)
-            .join("")}</td><td>${state(f.done)}</td></tr>`,
+            .join("")}</td><td>${state(f)}</td></tr>`,
         )
         .join("")}</table></div>
       ${p.codes.length ? `<div class="panel"><h2>HTML codes to repair (${p.codes.length})</h2><div class="pad meta">${p.codes.map(esc).join(" · ")}</div></div>` : ""}`;

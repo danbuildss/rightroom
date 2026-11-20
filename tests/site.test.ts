@@ -63,8 +63,9 @@ describe("Vercel copy of the site", () => {
     };
     const r = (host: string, source: string) =>
       v.redirects.find((x) => x.source === source && x.has[0]?.value === host)?.destination;
-    expect(r("getrightroom.co", "/app/:path*")).toBe("https://app.getrightroom.co/app/:path*");
-    expect(r("www.getrightroom.co", "/app/:path*")).toBe("https://app.getrightroom.co/app/:path*");
+    // The main domain keeps serving /app until app.getrightroom.co is confirmed live (then it redirects).
+    expect(r("getrightroom.co", "/app/:path*")).toBeUndefined();
+    expect(r("www.getrightroom.co", "/app/:path*")).toBeUndefined();
     expect(r("app.getrightroom.co", "/")).toBe("/app/");
     const appHost = v.headers.find((h) => h.has?.[0]?.value === "app.getrightroom.co");
     expect(appHost?.headers).toContainEqual({ key: "X-Robots-Tag", value: "noindex, nofollow" });

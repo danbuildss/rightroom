@@ -4,6 +4,74 @@
   "installCommand": "npm ci",
   "buildCommand": "npm run build:app",
   "outputDirectory": "site",
+  "redirects": [
+    {
+      "source": "/app",
+      "has": [
+        {
+          "type": "host",
+          "value": "getrightroom.co"
+        }
+      ],
+      "destination": "https://app.getrightroom.co/app/",
+      "permanent": false
+    },
+    {
+      "source": "/app/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "getrightroom.co"
+        }
+      ],
+      "destination": "https://app.getrightroom.co/app/:path*",
+      "permanent": false
+    },
+    {
+      "source": "/app",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.getrightroom.co"
+        }
+      ],
+      "destination": "https://app.getrightroom.co/app/",
+      "permanent": false
+    },
+    {
+      "source": "/app/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.getrightroom.co"
+        }
+      ],
+      "destination": "https://app.getrightroom.co/app/:path*",
+      "permanent": false
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "app.getrightroom.co"
+        }
+      ],
+      "destination": "/app/",
+      "permanent": false
+    },
+    {
+      "source": "/:page(privacy|terms|thanks)",
+      "has": [
+        {
+          "type": "host",
+          "value": "app.getrightroom.co"
+        }
+      ],
+      "destination": "https://getrightroom.co/:page",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/:path*",
@@ -81,6 +149,21 @@
           "key": "Permissions-Policy",
           "value": "camera=(), microphone=(), geolocation=()"
         },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "app.getrightroom.co"
+        }
+      ],
+      "headers": [
         {
           "key": "X-Robots-Tag",
           "value": "noindex, nofollow"

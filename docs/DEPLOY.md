@@ -118,7 +118,7 @@ removed in the Privy dashboard (Users).
 
 Addresses (one Vercel project serves all three; `vercel.json` sends the API to the Worker):
 - **https://getrightroom.co**: marketing site, privacy, terms (canonical; `www` redirects here, set in Vercel → Domains).
-- **https://app.getrightroom.co**: the founder app, served at `/` (the build lives in `/app/`). `/app` on the main domain, and `/app/` here, redirect to `/`. Never indexed.
+- **https://app.getrightroom.co**: the founder app at `/app/` (`/` redirects there; `/app` on the main domain redirects here). Never indexed. Vercel serves a real file before a rewrite, so the app can't live at `/` in this project.
 - **hello@getrightroom.co**: contact email (forwarding set up at the domain registrar).
 - `rightroom-alpha.vercel.app` and the workers.dev address keep working as previews.
 

@@ -6,50 +6,6 @@
   "outputDirectory": "site",
   "redirects": [
     {
-      "source": "/app",
-      "has": [
-        {
-          "type": "host",
-          "value": "getrightroom.co"
-        }
-      ],
-      "destination": "https://app.getrightroom.co/app/",
-      "permanent": false
-    },
-    {
-      "source": "/app/:path*",
-      "has": [
-        {
-          "type": "host",
-          "value": "getrightroom.co"
-        }
-      ],
-      "destination": "https://app.getrightroom.co/app/:path*",
-      "permanent": false
-    },
-    {
-      "source": "/app",
-      "has": [
-        {
-          "type": "host",
-          "value": "www.getrightroom.co"
-        }
-      ],
-      "destination": "https://app.getrightroom.co/app/",
-      "permanent": false
-    },
-    {
-      "source": "/app/:path*",
-      "has": [
-        {
-          "type": "host",
-          "value": "www.getrightroom.co"
-        }
-      ],
-      "destination": "https://app.getrightroom.co/app/:path*",
-      "permanent": false
-    },
-    {
       "source": "/",
       "has": [
         {

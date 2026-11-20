@@ -51,24 +51,36 @@ describe("Vercel copy of the site", () => {
 
   it("serves the same site folder and sends /api to the Cloudflare Worker", () => {
     expect(vercel.outputDirectory).toBe("site");
-    expect(vercel.rewrites).toEqual([
-      { source: "/api/:path*", destination: "https://rightroom.danewurum01.workers.dev/api/:path*" },
-    ]);
+    expect(vercel.rewrites).toContainEqual({
+      source: "/api/:path*",
+      destination: "https://rightroom.danewurum01.workers.dev/api/:path*",
+    });
   });
 
-  it("splits the domains: marketing on getrightroom.co, the app on app.getrightroom.co (never indexed)", () => {
+  it("splits the domains: marketing on getrightroom.co, the app at the root of app.getrightroom.co", () => {
+    type Rule = { source: string; has?: { value: string }[]; missing?: { value: string }[]; destination?: string };
     const v = vercel as unknown as {
-      redirects: { source: string; has: { value: string }[]; destination: string }[];
-      headers: { source: string; has?: { value: string }[]; headers: { key: string; value: string }[] }[];
+      redirects: Rule[];
+      rewrites: Rule[];
+      headers: (Rule & { headers: { key: string; value: string }[] })[];
     };
-    const r = (host: string, source: string) =>
-      v.redirects.find((x) => x.source === source && x.has[0]?.value === host)?.destination;
-    // The main domain keeps serving /app until app.getrightroom.co is confirmed live (then it redirects).
-    expect(r("getrightroom.co", "/app/:path*")).toBeUndefined();
-    expect(r("www.getrightroom.co", "/app/:path*")).toBeUndefined();
-    expect(r("app.getrightroom.co", "/")).toBe("/app/");
-    const appHost = v.headers.find((h) => h.has?.[0]?.value === "app.getrightroom.co");
-    expect(appHost?.headers).toContainEqual({ key: "X-Robots-Tag", value: "noindex, nofollow" });
+    const on = (list: Rule[], host: string, source: string) =>
+      list.find((x) => x.source === source && x.has?.[0]?.value === host);
+    const APP = "app.getrightroom.co";
+    // The app answers at / (no /app in the address); old /app links land there.
+    expect(on(v.rewrites, APP, "/")?.destination).toBe("/app/index.html");
+    expect(on(v.redirects, APP, "/app/")?.destination).toBe("/");
+    expect(on(v.redirects, APP, "/app")?.destination).toBe("/");
+    for (const host of ["getrightroom.co", "www.getrightroom.co"]) {
+      expect(on(v.redirects, host, "/app")?.destination).toBe(`https://${APP}/`);
+      expect(on(v.redirects, host, "/app/")?.destination).toBe(`https://${APP}/`);
+    }
+    // At / on the app host the app's own CSP applies (sign-in needs Privy), never the marketing one.
+    const appCsp = v.headers.find((h) => h.source === "/app/(.*)")?.headers;
+    expect(on(v.headers, APP, "/")).toMatchObject({ headers: appCsp });
+    expect(v.headers.find((h) => h.source === "/((?!app/).*)")?.missing?.[0]?.value).toBe(APP);
+    const all = v.headers.find((h) => h.source === "/(.*)" && h.has?.[0]?.value === APP);
+    expect(all?.headers).toContainEqual({ key: "X-Robots-Tag", value: "noindex, nofollow" });
   });
 
   it("uses the same security headers as Cloudflare", () => {

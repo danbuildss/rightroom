@@ -99,6 +99,37 @@ describe("finding early-stage teams", () => {
     expect(again.sources.reduce((s, x) => s + x.added, 0)).toBe(0);
   });
 
+  it("skips off-target sites by their own words, and takes categories from the site, not the GitHub repo", async () => {
+    n += 1;
+    const beach = `beachgh${n}.example`;
+    const pay = `paygh${n}.example`;
+    const base = web([
+      { domain: beach, via: "github" },
+      { domain: pay, via: "github" },
+    ]);
+    const fetcher = (async (input: RequestInfo | URL) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url === `https://${beach}/`)
+        return new Response(
+          `<title>Beach Test</title><meta name="description" content="Explore top beach clubs. Book day passes and cabanas (fictional test site).">`,
+          { headers: { "content-type": "text/html" } },
+        );
+      return base(input);
+    }) as unknown as typeof fetch;
+    await admin(fetcher, "POST", "/candidates/find");
+    await admin(fetcher, "POST", "/candidates/read-sites");
+    const open = ((await (await admin(fetcher, "GET", "/candidates")).json()) as { candidates: Cand[] }).candidates;
+    expect(open.find((c) => c.domain === beach)).toBeUndefined();
+    const p = open.find((c) => c.domain === pay) as Cand & { suggested_categories: string[] };
+    expect(p.suggested_categories).not.toContain("mcp");
+    const rejected = (
+      (await (await admin(fetcher, "GET", "/candidates?status=rejected")).json()) as {
+        candidates: (Cand & { site_note: string })[];
+      }
+    ).candidates.find((c) => c.domain === beach);
+    expect(rejected?.site_note).toBe("Skipped automatically: local service.");
+  });
+
   it("approving makes a verified, early-stage company with its links; founders see it in Explore", async () => {
     n += 1;
     const d = `approve${n}.example`;

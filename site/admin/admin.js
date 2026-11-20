@@ -13,6 +13,7 @@ const SECTIONS = [
   ["review", "Review queue"],
   ["companies", "All companies"],
   ["sources", "Sources"],
+  ["cleanup", "Clean up"],
   ["requests", "Access requests"],
   ["founders", "Founders"],
   ["grok", "Grok"],
@@ -23,7 +24,7 @@ const SECTIONS = [
 const SEGMENTS = [
   ["home", "Home", ["overview", "engine"]],
   ["toreview", "To review", ["candidates", "contacts", "inbox", "review"]],
-  ["companiesSeg", "Companies", ["companies", "sources"]],
+  ["companiesSeg", "Companies", ["companies", "sources", "cleanup"]],
   ["people", "People", ["requests", "founders"]],
   ["research", "Research & AI", ["grok", "ai", "spend"]],
 ];
@@ -293,6 +294,49 @@ views.engine = async (view) => {
     try {
       const { done } = await api("POST", "/engine/run");
       toast(done.map((d) => d.summary || d.task).join(" · "));
+    } catch (err) {
+      if (err.status !== 401) toast(err.message, { bad: true });
+    }
+    await render();
+    refreshCounts();
+  };
+};
+
+// ---------- Clean up (the data cleanup Dan approved on 20 Nov 2026) ----------
+views.cleanup = async (view) => {
+  const render = async () => {
+    const p = await api("GET", "/cleanup");
+    const todoRemove = p.remove.filter((r) => !r.done);
+    const todoFix = p.fix.filter((f) => !f.done);
+    const todo = todoRemove.length + todoFix.length + p.codes.length;
+    const state = (done) => `<span class="pill ${done ? "ok" : "warn"}">${done ? "Done" : "To do"}</span>`;
+    view.innerHTML = `${header("Clean up", "The cleanup you approved on 20 November: companies that aren't partners are removed (kept on record as rejected, so the engine never adds them again), a few records are corrected, and HTML codes like &amp;#x27; are turned back into normal characters.")}
+      <div class="notice ${todo ? "warn" : "ok"}">${
+        todo
+          ? `<b>${todoRemove.length} to remove, ${todoFix.length} to correct, ${p.codes.length} with HTML codes.</b> <button class="btn sm" type="button" data-apply>Apply cleanup</button>`
+          : "<b>All done.</b> Nothing left to clean up."
+      }</div>
+      <div class="panel"><h2>Remove (${p.remove.length})</h2><table><tr><th>Company</th><th>Why</th><th></th></tr>${p.remove
+        .map((r) => `<tr><td>${esc(r.name)}<br>${link(`https://${r.domain}`, r.domain)}</td><td>${esc(r.why)}</td><td>${state(r.done)}</td></tr>`)
+        .join("")}</table></div>
+      <div class="panel"><h2>Correct (${p.fix.length})</h2><table><tr><th>Company</th><th>Change</th><th></th></tr>${p.fix
+        .map(
+          (f) => `<tr><td>${esc(f.name)}<br>${link(`https://${f.domain}`, f.domain)}</td><td>${esc(f.why)}${f.changes
+            .map((ch) => `<br><span class="meta">${esc(ch.field)}: “${esc(ch.from)}” → “${esc(ch.to)}”</span>`)
+            .join("")}</td><td>${state(f.done)}</td></tr>`,
+        )
+        .join("")}</table></div>
+      ${p.codes.length ? `<div class="panel"><h2>HTML codes to repair (${p.codes.length})</h2><div class="pad meta">${p.codes.map(esc).join(" · ")}</div></div>` : ""}`;
+  };
+  await render();
+  view.onclick = async (ev) => {
+    const b = ev.target.closest("[data-apply]");
+    if (!b) return;
+    b.disabled = true;
+    b.textContent = "Applying…";
+    try {
+      const r = await api("POST", "/cleanup");
+      toast(`Removed ${r.removed}, corrected ${r.fixed}, repaired ${r.repaired}.`);
     } catch (err) {
       if (err.status !== 401) toast(err.message, { bad: true });
     }

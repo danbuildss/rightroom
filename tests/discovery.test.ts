@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { parseGithubSearch, parseHnShow, productDomain, readSiteMeta, suggestProfile } from "../shared/discovery.ts";
+import {
+  offTarget,
+  parseGithubSearch,
+  parseHnShow,
+  productDomain,
+  readSiteMeta,
+  suggestProfile,
+} from "../shared/discovery.ts";
 
 describe("finding early-stage teams", () => {
   it("keeps a product's own website and drops code hosts, social sites and app hosting", () => {
@@ -80,5 +87,27 @@ describe("finding early-stage teams", () => {
     expect(s.categories).toEqual(expect.arrayContaining(["payments"]));
     expect(suggestProfile("A layer-2 network for games").type).toBe("ecosystem");
     expect(suggestProfile("A notes app for teams").type).toBe("startup_product");
+  });
+
+  it("turns every HTML code back into its character (&#x27;, &#32;, &#39;)", () => {
+    expect(
+      readSiteMeta(`<meta name="description" content="Worried that you&#x27;re losing&#32;your edge? It&#39;s fine.">`)
+        .description,
+    ).toBe("Worried that you're losing your edge? It's fine.");
+  });
+
+  it("spots sites that aren't companies founders would partner with", () => {
+    expect(offTarget("Explore top beach clubs in Dubai. Book day passes and cabanas.")).toBe("Local service");
+    expect(offTarget("Full Stack Developer specializing in MERN stack, based in Surat")).toBe("Personal site");
+    expect(offTarget("Free online tools: tax, electricity bill and CGPA calculators")).toBe("Free tool site");
+    expect(offTarget("Turn one photo into viral TikTok AI meme videos")).toBe("Consumer app");
+    expect(offTarget("1:1 coaching for software developers")).toBe("Courses");
+    for (const ok of [
+      "Cloud sandboxes for running AI-generated code and agents.",
+      "Payments API for AI agents",
+      "The #1 AI & PM newsletter with playbooks",
+      "AI GTM finds your B2B buyers and verifies the decision maker",
+    ])
+      expect(offTarget(ok)).toBeNull();
   });
 });

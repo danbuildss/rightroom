@@ -6,6 +6,7 @@
  *
  * Everything here only proposes a candidate. Dan approves candidates before they become companies.
  */
+import { decodeEntities } from "./collector.ts";
 import { parseQuery } from "./discover.ts";
 import type { OrgType } from "./profile.ts";
 
@@ -95,15 +96,7 @@ export function parseGithubSearch(json: unknown): FoundTeam[] {
   return out;
 }
 
-const decode = (s: string) =>
-  s
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/\s+/g, " ")
-    .trim();
+const decode = (s: string) => decodeEntities(s).replace(/\s+/g, " ").trim();
 
 /** A homepage's own name and one-line description, from its meta tags or title. */
 export function readSiteMeta(html: string): { name: string | null; description: string | null } {
@@ -129,6 +122,26 @@ export function readSiteMeta(html: string): { name: string | null; description: 
     name: name ? name.slice(0, 120) : null,
     description: description ? description.slice(0, 400) : null,
   };
+}
+
+/**
+ * Sites that aren't companies founders would partner with: personal pages, local services, free tool
+ * sites, consumer apps and courses (the kinds removed in the 2026-11-20 cleanup). Read from the site's
+ * own name and description. Returns why, or null.
+ */
+const OFF_TARGET: [RegExp, string][] = [
+  [
+    /\b(my portfolio|portfolio of|freelancer?|full[- ]stack developer|personal (site|website|blog))\b/i,
+    "Personal site",
+  ],
+  [/\b(day pass(es)?|cabanas?|beach clubs?|location sound|book (a|your) (table|stay|trip))\b/i, "Local service"],
+  [/\b(free online tools?|(tax|bill|cgpa|bmi|loan) calculators?)\b/i, "Free tool site"],
+  [/\b(memes?|puzzles?|tiktok|anti-cheat)\b/i, "Consumer app"],
+  [/\b(online courses?|1:1 coaching|coaching for|bootcamp)\b/i, "Courses"],
+];
+export function offTarget(text: string): string | null {
+  for (const [re, why] of OFF_TARGET) if (re.test(text)) return why;
+  return null;
 }
 
 /** Sectors from our keyword list, and a type: platform/API, ecosystem or product. */

@@ -12,6 +12,7 @@
 
 import {
   type FoundTeam,
+  offTarget,
   parseGithubSearch,
   parseHnShow,
   productDomain,
@@ -220,11 +221,19 @@ export async function readCandidateSites(db: D1Database, opts: { fetcher?: typeo
     } catch {
       note = "Couldn't reach the homepage.";
     }
-    const s = suggestProfile(`${c.found_title} ${c.hint ?? ""} ${meta.description ?? ""}`);
+    // Categories from the site's own words when it has a description: a GitHub repo's topic (say, an
+    // MCP server) doesn't make a beach-club booking site an MCP company.
+    const own = meta.description ? `${meta.name ?? ""} ${meta.description}` : null;
+    const s = suggestProfile(own ?? `${c.found_title} ${c.hint ?? ""}`);
+    const skip = own ? offTarget(own) : null;
+    if (skip) note = `Skipped automatically: ${skip.toLowerCase()}.`;
     await db
       .prepare(
         `UPDATE company_candidates SET site_name = ?, site_description = ?, site_links_json = ?, site_checked_at = ?,
-           site_note = ?, suggested_categories_json = ?, suggested_type = ? WHERE id = ?`,
+           site_note = ?, suggested_categories_json = ?, suggested_type = ?,
+           status = CASE WHEN ? THEN 'rejected' ELSE status END,
+           reviewed_by = CASE WHEN ? THEN 'engine' ELSE reviewed_by END,
+           reviewed_at = CASE WHEN ? THEN ? ELSE reviewed_at END WHERE id = ?`,
       )
       .bind(
         meta.name,
@@ -234,6 +243,10 @@ export async function readCandidateSites(db: D1Database, opts: { fetcher?: typeo
         note,
         JSON.stringify(s.categories),
         s.type,
+        skip ? 1 : 0,
+        skip ? 1 : 0,
+        skip ? 1 : 0,
+        nowIso(),
         c.id,
       )
       .run();

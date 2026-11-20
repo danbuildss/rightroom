@@ -19,6 +19,7 @@ import {
 import { inviteDirectly, listAccessRequests, reviewAccessRequest } from "../db/access.ts";
 import { aiCheckCandidate, aiCheckNewCandidates, aiStatus, askAi, listModels, setSetting } from "../db/ai.ts";
 import { auditData } from "../db/audit.ts";
+import { applyCleanup, previewCleanup } from "../db/cleanup.ts";
 import {
   addAlias,
   addSource,
@@ -299,6 +300,14 @@ export const admin = new Hono<AppEnv>()
     return c.json({ ok: true });
   })
   // The engine: what ran, what it found, what's waiting; and "run one step now".
+  .get("/cleanup", async (c) => c.json(await previewCleanup(c.env.DB)))
+  .post("/cleanup", async (c) => {
+    try {
+      return c.json(await applyCleanup(c.env.DB, c.get("adminEmail")));
+    } catch (err) {
+      return fail(c, err);
+    }
+  })
   .get("/engine", async (c) => c.json(await engineStatus(c.env.DB)))
   .post("/engine/run", async (c) => c.json({ done: await runTick(c.env.DB, c.env, { fetcher: c.get("fetcher") }) }))
   // AI helpers (Bankr LLM gateway): status, model list, choose a model, a tiny test, and checks.

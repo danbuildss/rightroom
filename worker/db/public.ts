@@ -4,6 +4,7 @@
  * Sample records and internal fields (who reviewed, internal notes) are never returned.
  */
 import { effectiveSignalStatus, SIGNAL_TYPES, type SignalType } from "../../shared/signals.ts";
+import { chunks } from "./util.ts";
 
 export interface PublicCompany {
   slug: string;
@@ -37,13 +38,17 @@ const clampLimit = (n: number | undefined, max = 100) => Math.min(Math.max(n ?? 
 async function categoriesFor(db: D1Database, ids: string[]) {
   const map = new Map<string, PublicCompany["categories"]>();
   if (ids.length === 0) return map;
-  const { results } = await db
-    .prepare(
-      `SELECT cc.company_id, c.slug, c.label, c.kind FROM company_categories cc JOIN categories c ON c.id = cc.category_id
-       WHERE cc.company_id IN (${ids.map(() => "?").join(",")}) ORDER BY c.kind, c.label`,
-    )
-    .bind(...ids)
-    .all<{ company_id: string; slug: string; label: string; kind: string }>();
+  const parts = await db.batch<{ company_id: string; slug: string; label: string; kind: string }>(
+    chunks(ids).map((part) =>
+      db
+        .prepare(
+          `SELECT cc.company_id, c.slug, c.label, c.kind FROM company_categories cc JOIN categories c ON c.id = cc.category_id
+           WHERE cc.company_id IN (${part.map(() => "?").join(",")}) ORDER BY c.kind, c.label`,
+        )
+        .bind(...part),
+    ),
+  );
+  const results = parts.flatMap((p) => p.results ?? []);
   for (const r of results) {
     const list = map.get(r.company_id) ?? [];
     list.push({ slug: r.slug, label: r.label, kind: r.kind });
@@ -133,19 +138,23 @@ export async function listPublicSignals(
       company_domain: string;
     }>();
   if (results.length === 0) return [];
-  const { results: srcs } = await db
-    .prepare(
-      `SELECT ss.signal_id, ss.role, s.url, s.title, s.published_at FROM signal_sources ss JOIN sources s ON s.id = ss.source_id
-       WHERE ss.signal_id IN (${results.map(() => "?").join(",")}) ORDER BY ss.role DESC`,
-    )
-    .bind(...results.map((r) => r.id))
-    .all<{
-      signal_id: string;
-      role: "primary" | "corroborating";
-      url: string;
-      title: string;
-      published_at: string | null;
-    }>();
+  const parts = await db.batch<{
+    signal_id: string;
+    role: "primary" | "corroborating";
+    url: string;
+    title: string;
+    published_at: string | null;
+  }>(
+    chunks(results.map((r) => r.id)).map((ids) =>
+      db
+        .prepare(
+          `SELECT ss.signal_id, ss.role, s.url, s.title, s.published_at FROM signal_sources ss JOIN sources s ON s.id = ss.source_id
+           WHERE ss.signal_id IN (${ids.map(() => "?").join(",")}) ORDER BY ss.role DESC`,
+        )
+        .bind(...ids),
+    ),
+  );
+  const srcs = parts.flatMap((p) => p.results ?? []);
   return results.map((r) => ({
     id: r.id,
     company: { slug: r.company_slug, name: r.company_name, domain: r.company_domain },

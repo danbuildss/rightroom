@@ -14,7 +14,7 @@ import {
   type SignalType,
 } from "../../shared/signals.ts";
 import { addSource, findByAliases } from "./companies.ts";
-import { ConflictError, NotFoundError, newId, nowIso } from "./util.ts";
+import { ConflictError, chunks, NotFoundError, newId, nowIso } from "./util.ts";
 
 export class DuplicateSignalError extends ConflictError {
   constructor(readonly existingId: string) {
@@ -257,13 +257,24 @@ const SIGNAL_SELECT = `SELECT se.id, se.company_id, c.name AS company_name, c.sl
 
 async function withSources(db: D1Database, rows: SignalRow[], now: Date): Promise<Signal[]> {
   if (rows.length === 0) return [];
-  const { results } = await db
-    .prepare(
-      `SELECT ss.signal_id, ss.role, s.url, s.title, s.kind, s.published_at FROM signal_sources ss
-       JOIN sources s ON s.id = ss.source_id WHERE ss.signal_id IN (${rows.map(() => "?").join(",")})`,
-    )
-    .bind(...rows.map((r) => r.id))
-    .all<{ signal_id: string; role: string; url: string; title: string; kind: string; published_at: string | null }>();
+  const parts = await db.batch<{
+    signal_id: string;
+    role: string;
+    url: string;
+    title: string;
+    kind: string;
+    published_at: string | null;
+  }>(
+    chunks(rows.map((r) => r.id)).map((ids) =>
+      db
+        .prepare(
+          `SELECT ss.signal_id, ss.role, s.url, s.title, s.kind, s.published_at FROM signal_sources ss
+           JOIN sources s ON s.id = ss.source_id WHERE ss.signal_id IN (${ids.map(() => "?").join(",")})`,
+        )
+        .bind(...ids),
+    ),
+  );
+  const results = parts.flatMap((p) => p.results ?? []);
   return rows.map((r) => {
     const mine = results.filter((s) => s.signal_id === r.id);
     const strip = ({ url, title, kind, published_at }: (typeof mine)[number]) => ({ url, title, kind, published_at });

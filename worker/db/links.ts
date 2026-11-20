@@ -3,6 +3,8 @@
  * aliases), and its partner page and docs (from sources attached to the company, preferring pages
  * on its own site). A link only appears when we have it; nothing is guessed.
  */
+import { chunks } from "./util.ts";
+
 export interface CompanyLinks {
   website: string;
   x: string | null;
@@ -40,23 +42,32 @@ export async function linksFor(
       email: null,
       contact_form: null,
     });
-  const ids = companies.map((c) => c.id);
-  const marks = ids.map(() => "?").join(",");
-  const [aliases, sources, web] = await db.batch([
-    db
-      .prepare(
-        `SELECT company_id, kind, value FROM company_aliases WHERE company_id IN (${marks}) AND kind IN ('x_handle', 'github_org')
-         ORDER BY created_at`,
-      )
-      .bind(...ids),
-    db
-      .prepare(
-        `SELECT company_id, kind, url FROM sources WHERE company_id IN (${marks}) AND kind IN ('partner_page', 'docs')
-         ORDER BY first_seen_at DESC`,
-      )
-      .bind(...ids),
-    db.prepare(`SELECT company_id, kind, value FROM company_web_links WHERE company_id IN (${marks})`).bind(...ids),
-  ]);
+  // In pieces: D1 refuses a query with more than 100 values (this broke every founder page at 101 companies).
+  const parts = chunks(companies.map((c) => c.id));
+  const all = await db.batch(
+    parts.flatMap((ids) => {
+      const marks = ids.map(() => "?").join(",");
+      return [
+        db
+          .prepare(
+            `SELECT company_id, kind, value FROM company_aliases WHERE company_id IN (${marks}) AND kind IN ('x_handle', 'github_org')
+             ORDER BY created_at`,
+          )
+          .bind(...ids),
+        db
+          .prepare(
+            `SELECT company_id, kind, url FROM sources WHERE company_id IN (${marks}) AND kind IN ('partner_page', 'docs')
+             ORDER BY first_seen_at DESC`,
+          )
+          .bind(...ids),
+        db.prepare(`SELECT company_id, kind, value FROM company_web_links WHERE company_id IN (${marks})`).bind(...ids),
+      ];
+    }),
+  );
+  const pick = (k: number) => all.filter((_, i) => i % 3 === k).flatMap((r) => r.results ?? []);
+  const aliases = { results: pick(0) };
+  const sources = { results: pick(1) };
+  const web = { results: pick(2) };
   for (const w of (web?.results ?? []) as { company_id: string; kind: string; value: string }[]) {
     const l = out.get(w.company_id);
     if (!l) continue;
